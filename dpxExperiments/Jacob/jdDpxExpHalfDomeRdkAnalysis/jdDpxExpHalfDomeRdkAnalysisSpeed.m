@@ -1,4 +1,4 @@
- function nFilesWithDataWithinWindow=jdDpxExpHalfDomeRdkAnalysisSpeed(files,timeWinSec)
+ function nFilesWithDataWithinWindow=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option)
      % see also: jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
     if ~exist('files','var') || isempty(files)
         files=dpxUIgetFiles;
@@ -7,10 +7,20 @@
             return;
         end
     end
-    if ~exist('timeWinSec','var') || isempty(timeWinSec)
-        timeWinSec=nan;
-    elseif ~numel(timeWinSec)==2
-        error('timeWinSec needs two values: a min and a max time in seconds');
+    if ~exist('option','var') || isempty(option)
+        option=[];
+        timeWinSec=[];
+    elseif isnumeric(option)
+        timeWinSec=option;
+        if ~numel(timeWinSec)==2
+            error('timeWinSec needs two values: a min and a max time in seconds');
+        end
+    elseif ischar(option)
+        timeWinSec=[];
+        strs={'betweenEarly','betweenLate','withinEarly','withinLate'};
+        if ~any(strcmpi(option,strs))
+            error(['unknown option, should be one of ' sprintf('%s ',strs{:})]);
+        end
     end
     E={};
     nFilesWithDataWithinWindow=0;
@@ -57,6 +67,22 @@
     % Merge all datafiles that we collected in cell array
     E=dpxdMerge(E); % E is now a DPXD
     %
+    if ischar(option)
+        dpxDispFancy(['Doing median-split ' option ]);
+        switch lower(option)
+            case 'betweenearly'
+                E=dpxdToolSplitByTime(E,'scope','betweenruns','interval',[0 0.5]);
+            case 'betweenlate'
+                E=dpxdToolSplitByTime(E,'scope','betweenruns','interval',[0.5 1]);
+            case 'withinearly'
+                E=dpxdToolSplitByTime(E,'scope','withinruns','interval',[0 0.5]);
+            case 'withinlate'
+                E=dpxdToolSplitByTime(E,'scope','withinruns','interval',[0.5 1]);
+            otherwise
+                error('???');
+        end
+    end
+    %
     % Add a mean background luminance field to E based on the RGBAfrac values
     % by calculates the mean of the first 3 elements of each 4-element array in
     % cell array E.mask_RGBAfrac
@@ -87,8 +113,8 @@
     %
     % Plot the speed curves for 1 mouse in separate panels for contrast
     M = dpxdSubset(A,strcmpi(A.mus,'MEAN'));
-    plotTimeYawCurves(M,'contrast',timeWinSec);
-    plotSpeedYawCurves(M,timeWinSec); 
+    plotTimeYawCurves(M,'contrast',option);
+    plotSpeedYawCurves(M,option); 
 end
 
 
@@ -109,16 +135,19 @@ function C = analyzeAcrossMiceAndSpeeds(E)
     E=dpxdSplit(E,'exp_subjectId'); % E is now a cell-array of DPXDs
     % for each mouse, get the curves, and store in cell array C
     C=cell(size(E));
-    for i=1:numel(E)
+    nMice=numel(E);
+    for i=1:nMice
         C{i}=getSpeedCurves(E{i});
     end
     % Make a plot of the raw yaw traces, to visual inspect for clipping
     %plotAllYawToCheckClipping(C,titleString);
     % calculate mean traces per mouse (pooled over sessions)
     C=getMeanYawTracesPerMouse(C);
-    % add a virtual mouse that is the mean of all mean-others
-    minRepsPerTracePerMouseToBeIncludedInMean=30;
-    C=addMeanMouse(C,minRepsPerTracePerMouseToBeIncludedInMean);
+    if nMice>1
+        % add a virtual mouse that is the mean of all mean-others
+        minRepsPerTracePerMouseToBeIncludedInMean=30;
+        C=addMeanMouse(C,minRepsPerTracePerMouseToBeIncludedInMean);
+    end
 end
 
 function C=getSpeedCurves(D)
@@ -427,7 +456,7 @@ function M = poolPositiveAndNegativeSpeed(M)
     
 end
 
-function plotTimeYawCurves(A,fieldName,timeWinSec)
+function plotTimeYawCurves(A,fieldName,option)
     % Plot the Yaw as a function of time. Different colors indicate
     % different speeds. Data is split out in panels according to fieldNAme,
     % which could be, for example, 'contrast'
@@ -442,10 +471,12 @@ function plotTimeYawCurves(A,fieldName,timeWinSec)
         error('plotTimeYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    if isnan(timeWinSec)
+    if isempty(option)
         figtit=['time-yaw curves per' fieldName];
-    else
-        figtit=['time-yaw curver per ' fieldName ' (minute ' num2str(min(timeWinSec/60)) ' to ' num2str(max(timeWinSec/60)) ')'];
+    elseif isnumeric(option) % timeWinSec
+        figtit=['time-yaw curver per ' fieldName ' (minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
+    elseif ischar(option)
+        figtit=['time-yaw curves per' fieldName ' (' option ')'];
     end
     cpsFindFig(figtit);
     clf; % clear the figure
@@ -532,7 +563,7 @@ end
 
 
 
-function plotSpeedYawCurves(A,timeWinSec)
+function plotSpeedYawCurves(A,option)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
     narginchk(2,2);
@@ -543,12 +574,14 @@ function plotSpeedYawCurves(A,timeWinSec)
         error('plotSpeedYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-        if isnan(timeWinSec)
+    if isempty(option)
         figtit='speed/yaw curves per contrast';
-    else
-        figtit=['speed/yaw curves per contrast (minute ' num2str(min(timeWinSec/60)) ' to ' num2str(max(timeWinSec/60)) ')'];
+    elseif isnumeric(option)
+        figtit=['speed/yaw curves per contrast (minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
+    elseif ischar(option)
+        figtit=['speed/yaw curves per contrast - ' option];
     end
-    cpsFindFig(['']);
+    cpsFindFig(figtit);
     clf; % clear the figure
     % Remove the -1 contrast data that contains the yaw pooled over all
     % contrasts (not split out according to contrast)
