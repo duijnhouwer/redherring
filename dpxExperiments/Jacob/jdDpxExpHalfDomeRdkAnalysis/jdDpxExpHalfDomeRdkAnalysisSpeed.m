@@ -1,5 +1,10 @@
- function nFilesWithDataWithinWindow=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option)
-     % see also: jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
+ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option)
+     
+     % Analyze halfdome mouse on ball data
+     % see also:
+     %    jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
+     %    jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
+     
     if ~exist('files','var') || isempty(files)
         files=dpxUIgetFiles;
         disp([num2str(numel(files)) ' datafiles selected.']);
@@ -23,7 +28,7 @@
         end
     end
     E={};
-    nFilesWithDataWithinWindow=0;
+    out.nFilesWithDataWithinWindow=0;
     for i=1:numel(files)
         D=dpxdLoad(files{i});
         if ~isnan(timeWinSec)
@@ -32,7 +37,7 @@
             if max(timeWinSec)>max(t)
                 continue; % this file has reached it's maximum time
             else
-                nFilesWithDataWithinWindow=nFilesWithDataWithinWindow+1;
+                out.nFilesWithDataWithinWindow=out.nFilesWithDataWithinWindow+1;
             end
             D=dpxdSubset(D,t>=min(timeWinSec) & t<max(timeWinSec));
         end
@@ -563,7 +568,7 @@ end
 
 
 
-function plotSpeedYawCurves(A,option)
+function out=plotSpeedYawCurves(A,option)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
     narginchk(2,2);

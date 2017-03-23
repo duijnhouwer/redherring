@@ -23,8 +23,8 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin(startMin,stepMin,winMin)
     
     for slid=0:1e30 % "infinite" steps
         timeWinSec=[startMin+slid*stepMin startMin+slid*stepMin+winMin]*60; 
-        nPlotted=jdDpxExpHalfDomeRdkAnalysisSpeed(files,timeWinSec);
-        if nPlotted==0
+        out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,timeWinSec);
+        if out.nFilesWithDataWithinWindow==0
             break; % the for loop
         end
     end

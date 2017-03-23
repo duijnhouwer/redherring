@@ -1,4 +1,4 @@
-function jdDpxExpHalfDomeRdkAnalysisSpeed(files)
+function jdDpxExpHalfDomeRdkAnalysisDotDiam(files)
     if nargin==0
         files=dpxUIgetFiles;
         disp([num2str(numel(files)) ' datafiles selected.']);
