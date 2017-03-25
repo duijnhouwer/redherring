@@ -8,7 +8,7 @@ function [hl,hb]=dpxPlotBounded(varargin)
     p.addParamValue('Color','',@(x)isempty(x)||ischar(x)||(isnumeric(x)&&numel(x)==3));
     p.addParamValue('FaceColor','k',@(x)isempty(x)||ischar(x)||(isnumeric(x)&&numel(x)==3));
     p.addParamValue('LineColor','k',@(x)isempty(x)||ischar(x)||(isnumeric(x)&&numel(x)==3));
-    p.addParamValue('FaceAlpha',1/3,@(x)isnumeric(x));
+    p.addParamValue('FaceAlpha',1/5,@(x)isnumeric(x));
     p.addParamValue('LineWidth',.5,@(x)isnumeric(x));
     p.addParamValue('LineStyle','-',@(x)isnumeric(x));
     % Note that you can always change the properties of the line and the bounds

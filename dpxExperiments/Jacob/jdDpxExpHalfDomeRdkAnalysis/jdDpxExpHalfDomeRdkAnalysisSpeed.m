@@ -5,6 +5,9 @@
      %    jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
      %    jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
      
+    global intWinSec
+    intWinSec=[1 2]; % time window over which mean yaw is taken
+    
     if ~exist('files','var') || isempty(files)
         files=dpxUIgetFiles;
         disp([num2str(numel(files)) ' datafiles selected.']);
@@ -120,6 +123,8 @@
     M = dpxdSubset(A,strcmpi(A.mus,'MEAN'));
     plotTimeYawCurves(M,'contrast',option);
     plotSpeedYawCurves(M,option); 
+    % Output for further analysis
+    out.A=A;
 end
 
 
@@ -466,6 +471,7 @@ function plotTimeYawCurves(A,fieldName,option)
     % different speeds. Data is split out in panels according to fieldNAme,
     % which could be, for example, 'contrast'
     narginchk(3,3);
+    global intWinSec;
     if ~dpxdIs(A)
         error('First argument should be a DPXD');
     end
@@ -497,7 +503,7 @@ function plotTimeYawCurves(A,fieldName,option)
         D = dpxdSubset(A,A.(fieldName)==values(i));
         D = poolPositiveAndNegativeSpeed(D);
         subplot(nRows,nCols,i);
-        lineHandles = nan(size(D.speed));
+        [lineHandles,boundHandles] = deal(nan(size(D.speed)));
         lineLabels = cell(size(D.speed));
         for vi = 1:numel(D.speed)
             thisSpeed = D.speed(vi);
@@ -529,26 +535,33 @@ function plotTimeYawCurves(A,fieldName,option)
                 y=y(1:numel(t));
                 sem=sem(1:numel(t));
             end
-            hl=dpxPlotBounded('x',t(1:numel(y)),'y',y,'eu',sem,'ed',sem,'LineColor',col,'FaceColor',col,'LineWidth',wid);
+            [hl,hb]=dpxPlotBounded('x',t(1:numel(y)),'y',y,'eu',sem,'ed',sem ...
+                ,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',1/5);
             hold on;
             % ugly-print the number of mice that this line is the mean from
             % and the number of repeats that went into each mouse's line
             infoStr=[num2str(V.yawN{1}(1)) ' (' num2str(V.yawN{1}(2:end)') ')'];
             text(t(numel(y)),y(end),infoStr,'Color',col);
             lineHandles(vi) = hl;
+            boundHandles(vi) = hb;
             if thisSpeed>0
                 lineLabels{vi} = ['\pm' num2str(thisSpeed) ' deg/s']; % \pm generates plus-minus sign
             else
                 lineLabels{vi} = [num2str(thisSpeed) ' deg/s'];
             end
         end
-        % Send all lines to the front, so they are not occluded by the
-        % shaded boundaries
-        cpsArrange(lineHandles,'front')
+  
         % make the time axis run from -.75 to 3 seconds
         axlims = axis;
         axlims(1:2) = [-.5 3];
         axis(axlims);
+        % Draw a patch to indicate the area over which the mean is taken
+        intwinHandle=fill([min(intWinSec) max(intWinSec) max(intWinSec) min(intWinSec)],...
+            [axlims(3) axlims(3) axlims(4) axlims(4)],[.9 .9 .9],'EdgeColor','none');
+        % Rearrange so the error boundaries are in front of the patch and
+        % the lines are in the very front
+        cpsArrange(boundHandles,'front')
+        cpsArrange(lineHandles,'front')
         % set the label strings
         if i==1
             xlabel('Time since motion onset (s)');
@@ -572,6 +585,7 @@ function out=plotSpeedYawCurves(A,option)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
     narginchk(2,2);
+    global intWinSec
     if ~dpxdIs(A)
         error('First argument should be a DPXD');
     end
@@ -615,7 +629,7 @@ function out=plotSpeedYawCurves(A,option)
             % wid = abs(0.5 + fade*3);
             %
             
-            idx = V.time{1}>1.0 & V.time{1}<2.0; %interval from which the average is taken
+            idx = V.time{1}>=min(intWinSec) & V.time{1}<max(intWinSec);
             yaw(vi) = mean(V.yawMean{1}(idx));
             yawSem(vi) = mean(V.yawSEM{1}(idx));
         end
