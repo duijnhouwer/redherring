@@ -20,11 +20,31 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     
     flds=fieldnames(out);
     for i=1:numel(flds)
-        P{i}=prepForAnova(out.(flds{i}).A);
-        P{i}.medSplit=repmat({flds{i}},1,P{i}.N); % add the type of median split for use as a factor
+        P{i}=out.(flds{i}).A;
+        P{i}.medSplit=repmat(flds(i),1,P{i}.N); % add the type of median split for use as a factor
     end
     P=dpxdMerge(P);
     
+    
+    cpsFindFig('Yaw vs Speed plot per Median Split');
+    clf;
+    hold on;
+    for fi=1:numel(flds)
+        if ~isempty(strfind(lower(flds{fi}),'between')), col='r'; else col='b'; end
+        if ~isempty(strfind(lower(flds{fi}),'early')), lstl='-'; else lstl='--'; end
+        K=dpxdSubset(P,strcmpi(P.medSplit,flds{fi}));
+        uSpeed=unique(K.speed);
+        for i=1:numel(uSpeed)
+            v(i)=uSpeed(i);
+            y(i)=mean(K.yawIntegral(K.speed==uSpeed(i)));
+            ySem(i)=std(K.yawIntegral(K.speed==uSpeed(i)))./sqrt(sum(K.speed==uSpeed(i)));
+        end
+        lineHandles(fi) = errorbar(v,y,ySem,lstl,'Color',col,'LineWidth',2,'Marker','o','MarkerSize',10,'MarkerEdgeColor','none','MarkerFaceColor',col);
+    end
+    xlabel('speed');
+    ylabel('yawIntegral');
+    legend(lineHandles,flds,'Location','NorthWest');
+    cpsRefLine('-','k--');
     
     % Perform the ANOVAs
     factorNames={'medSplit','Speed','Mouse','Contrast'};
@@ -34,9 +54,9 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
         ,'Display','off');
     disp(atab)
     if pVals(1)<0.05
-        disp(['---> there is a main effect of median-split (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is a main effect of median-split (p=' num2str(pVals(1)) ')']);
     else
-        disp(['---> there is NO main effect of median-split (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is NO main effect of median-split (p=' num2str(pVals(1)) ')']);
     end
     %
     % now do the anova separately for betweenEarly vs betweenLate and for
@@ -48,9 +68,9 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
         ,'Display','off');
     disp(atab)
     if pVals(1)<0.05
-        disp(['---> there is a main effect of median-split betweenEarly-vs-betweenLate (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is a main effect of median-split betweenEarly-vs-betweenLate (p=' num2str(pVals(1)) ')']);
     else
-        disp(['---> there is NO main effect of median-split betweenEarly-vs-betweenLate (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is NO main effect of median-split betweenEarly-vs-betweenLate (p=' num2str(pVals(1)) ')']);
     end
     %
     dpxDispFancy('*ANOVA across median split types withinEarly-vs-withinLate*');
@@ -59,29 +79,11 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
         ,'Display','off');
     disp(atab)
     if pVals(1)<0.05
-         disp(['---> there is a main effect of median-split withinEarly-vs-withinLate (p=' num2str(pVals(1)) ')']);
+         disp(['---> There is a main effect of median-split withinEarly-vs-withinLate (p=' num2str(pVals(1)) ')']);
     else
-        disp(['---> there is NO main effect of median-split withinEarly-vs-withinLate (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is NO main effect of median-split withinEarly-vs-withinLate (p=' num2str(pVals(1)) ')']);
     end
     cpsTileFigs
 end
     
 
-function A=prepForAnova(A)
-    % remove unnecessary fields
-    A=rmfield(A,{'yawRaw','yawSEM','yawN','yawMean'});
-	% remove the mean mouse
-    A=dpxdSubset(A,~strcmpi(A.mus,'MEAN'));
-    % remove the pooled contrasts
-    A=dpxdSubset(A,A.contrast~=-1);
-    % get raw-yaw integrals over 1 and 2 seconds since stim-on
-    for i=1:A.N
-        A.yawIntegral{i}=nan(size(A.yaw{i}));
-        for tr=1:numel(A.yaw{i})
-            idx=A.time{i}>=1.0 & A.time{i}<2.0;
-            A.yawIntegral{i}(tr)=mean(A.yaw{i}{tr}(idx));
-        end
-    end
-    A=rmfield(A,{'yaw','time'});
-    A=dpxdUnfold(A,'yawIntegral');
-end

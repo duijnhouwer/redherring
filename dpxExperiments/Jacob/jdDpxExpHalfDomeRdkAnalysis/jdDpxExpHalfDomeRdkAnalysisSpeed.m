@@ -124,8 +124,8 @@
     plotTimeYawCurves(M,'contrast',option);
     plotSpeedYawCurves(M,option); 
     % Output for further analysis
-    out.A=A;
-end
+    out.A=prepForAnova(A);
+ end
 
 
 function C = analyzeAcrossMiceAndSpeeds(E)
@@ -581,7 +581,7 @@ end
 
 
 
-function out=plotSpeedYawCurves(A,option)
+function plotSpeedYawCurves(A,option)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
     narginchk(2,2);
@@ -657,6 +657,26 @@ function out=plotSpeedYawCurves(A,option)
     xlabel('Stimulus speed (deg/s)');
     ylabel('Yaw (AU/s)');
     legend(gca,lineHandles,lineLabels,'Location','NorthWest');
+end
+
+function A=prepForAnova(A)
+     A = poolPositiveAndNegativeSpeed(A);
+    % remove unnecessary fields
+    A=rmfield(A,{'yawRaw','yawSEM','yawN','yawMean'});
+	% remove the mean mouse
+    A=dpxdSubset(A,~strcmpi(A.mus,'MEAN'));
+    % remove the pooled contrasts
+    A=dpxdSubset(A,A.contrast~=-1);
+    % get raw-yaw integrals over 1 and 2 seconds since stim-on
+    for i=1:A.N
+        A.yawIntegral{i}=nan(size(A.yaw{i}));
+        for tr=1:numel(A.yaw{i})
+            idx=A.time{i}>=1.0 & A.time{i}<2.0;
+            A.yawIntegral{i}(tr)=mean(A.yaw{i}{tr}(idx));
+        end
+    end
+    A=rmfield(A,{'yaw','time'});
+    A=dpxdUnfold(A,'yawIntegral');
 end
 
 
