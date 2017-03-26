@@ -64,7 +64,6 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
         disp(['---> there is NO main effect of median-split withinEarly-vs-withinLate (p=' num2str(pVals(1)) ')']);
     end
     cpsTileFigs
-    keyboard
 end
     
 
