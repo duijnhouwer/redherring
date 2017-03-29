@@ -4,6 +4,7 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     % jacob 20170322
     % http://youtu.be/gBXC1Ookse8
     
+    if false
     files=dpxUIgetFiles;
     disp([num2str(numel(files)) ' datafiles selected.']);
     if isempty(files)
@@ -20,36 +21,52 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     
     flds=fieldnames(out);
     for i=1:numel(flds)
-        P{i}=out.(flds{i}).A;
+        P{i}=out.(flds{i}).curves;
         P{i}.medSplit=repmat(flds(i),1,P{i}.N); % add the type of median split for use as a factor
     end
     P=dpxdMerge(P);
     
+    keyboard
+    else
+        load P
+        out.withinEarly='';
+        out.withinLate='';
+        out.betweenEarly='';
+        out.betweenLate='';
+        flds=fieldnames(out);
+    end
     
     cpsFindFig('Yaw vs Speed plot per Median Split');
     clf;
     hold on;
     for fi=1:numel(flds)
-        if ~isempty(strfind(lower(flds{fi}),'between')), col='r'; else col='b'; end
-        if ~isempty(strfind(lower(flds{fi}),'early')), lstl='-'; else lstl='--'; end
+        if strcmpi(flds{fi},'withinEarly') 
+            col='r'; lstl='-'; mrk='<';
+        elseif strcmpi(flds{fi},'withinLate') 
+            col='r'; lstl='--'; mrk='>';
+        elseif strcmpi(flds{fi},'betweenEarly') 
+            col='b'; lstl='-'; mrk='^';
+        elseif strcmpi(flds{fi},'betweenLate') 
+            col='b'; lstl='--'; mrk='v';
+        end                
         K=dpxdSubset(P,strcmpi(P.medSplit,flds{fi}));
-        uSpeed=unique(K.speed);
+        uSpeed=unique(K.speeds);
         for i=1:numel(uSpeed)
             v(i)=uSpeed(i);
-            y(i)=mean(K.yawIntegral(K.speed==uSpeed(i)));
-            ySem(i)=std(K.yawIntegral(K.speed==uSpeed(i)))./sqrt(sum(K.speed==uSpeed(i)));
+            y(i)=mean(K.yaw(K.speeds==uSpeed(i)));
+            ySem(i)=std(K.yaw(K.speeds==uSpeed(i)))./sqrt(sum(K.speeds==uSpeed(i)));
         end
-        lineHandles(fi) = errorbar(v,y,ySem,lstl,'Color',col,'LineWidth',2,'Marker','o','MarkerSize',10,'MarkerEdgeColor','none','MarkerFaceColor',col);
+        lineHandles(fi) = errorbar(v,y,ySem,lstl,'Color',col,'LineWidth',2,'Marker',mrk,'MarkerSize',10,'MarkerEdgeColor','none','MarkerFaceColor',col);
     end
-    xlabel('speed');
-    ylabel('yawIntegral');
+    xlabel('Speed (deg/s)','FontSize',14);
+    ylabel('Yaw','FontSize',14);
     legend(lineHandles,flds,'Location','NorthWest');
     cpsRefLine('-','k--');
     
     % Perform the ANOVAs
     factorNames={'medSplit','Speed','Mouse','Contrast'};
     dpxDispFancy('*ANOVA across all median split types*');
-    [pVals,atab]=anovan(P.yawIntegral,{P.medSplit P.speed P.mus P.contrast }...
+    [pVals,atab]=anovan(P.yaw,{P.medSplit P.speeds P.mouse P.contrast }...
         ,'model',1,'varnames',factorNames...
         ,'Display','off');
     disp(atab)
@@ -63,7 +80,7 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     % withinEarly vs withinLate
     [B,W]=dpxdSubset(P,strcmpi(P.medSplit,'betweenEarly') | strcmpi(P.medSplit,'betweenLate'));
     dpxDispFancy('*ANOVA across median split types betweenEarly-vs-betweenLate*');
-    [pVals,atab]=anovan(B.yawIntegral,{B.medSplit B.speed B.mus B.contrast }...
+    [pVals,atab]=anovan(B.yaw,{B.medSplit B.speeds B.mouse B.contrast }...
         ,'model',1,'varnames',factorNames...
         ,'Display','off');
     disp(atab)
@@ -74,7 +91,7 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     end
     %
     dpxDispFancy('*ANOVA across median split types withinEarly-vs-withinLate*');
-    [pVals,atab]=anovan(W.yawIntegral,{W.medSplit W.speed W.mus W.contrast }...
+    [pVals,atab]=anovan(W.yaw,{W.medSplit W.speeds W.mouse W.contrast }...
         ,'model',1,'varnames',factorNames...
         ,'Display','off');
     disp(atab)

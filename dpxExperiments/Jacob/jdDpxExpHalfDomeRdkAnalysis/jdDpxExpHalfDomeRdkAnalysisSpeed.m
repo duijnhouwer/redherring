@@ -97,6 +97,9 @@
     %
     % HOEPLA,20160630: nu is de luminantie bepaald door rdk_RGBAfrac1, niet mask_RGBAfrac
     %
+    if E.N==0
+        keyboard
+    end
     E.mask_grayFrac=cellfun(@(x)mean(x(1:3)),E.rdk_RGBAfrac1);
     E.mask_grayFrac=round(E.mask_grayFrac*1000)/1000; % round to remove precission errors
     lumsUsed=unique(E.mask_grayFrac);
@@ -119,12 +122,16 @@
     end
     A = dpxdMerge(A); % combine into one DPXD again
     %
-    % Plot the speed curves for 1 mouse in separate panels for contrast
-    M = dpxdSubset(A,strcmpi(A.mus,'MEAN'));
-    plotTimeYawCurves(M,'contrast',option);
-    plotSpeedYawCurves(M,option); 
+    % Plot the speed curves for each mouse and the mean in separate panels for contrast
+    miceNames=unique(A.mus);
+    curves={};
+    for i=1:numel(miceNames)
+        M = dpxdSubset(A,strcmpi(A.mus,miceNames{i}));
+        plotTimeYawCurves(M,'contrast',option);
+        curves{end+1}=plotSpeedYawCurves(M,option);
+    end
     % Output for further analysis
-    out.A=prepForAnova(A);
+    out.curves=dpxdMerge(curves);
  end
 
 
@@ -482,12 +489,13 @@ function plotTimeYawCurves(A,fieldName,option)
         error('plotTimeYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    if isempty(option)
-        figtit=['time-yaw curves per' fieldName];
-    elseif isnumeric(option) % timeWinSec
-        figtit=['time-yaw curver per ' fieldName ' (minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
-    elseif ischar(option)
-        figtit=['time-yaw curves per' fieldName ' (' option ')'];
+    figtit=['time-yaw curves of mouse ' cell2mat(unique(A.mus)) ' per ' fieldName];
+    if ~isempty(option)
+        if isnumeric(option) % timeWinSec
+            figtit=[figtit ' (minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
+        elseif ischar(option)
+            figtit=[figtit ' (' option ')'];
+        end
     end
     cpsFindFig(figtit);
     clf; % clear the figure
@@ -581,10 +589,15 @@ end
 
 
 
-function plotSpeedYawCurves(A,option)
+function [out]=plotSpeedYawCurves(A,option)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
     narginchk(2,2);
+    out.speeds=[];
+    out.yaw=[];
+    out.contrast=[];
+    out.mouse={};
+    out.N=0;
     global intWinSec
     if ~dpxdIs(A)
         error('First argument should be a DPXD');
@@ -593,12 +606,13 @@ function plotSpeedYawCurves(A,option)
         error('plotSpeedYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    if isempty(option)
-        figtit='speed/yaw curves per contrast';
-    elseif isnumeric(option)
-        figtit=['speed/yaw curves per contrast (minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
-    elseif ischar(option)
-        figtit=['speed/yaw curves per contrast - ' option];
+    figtit=['Speed/yaw curves of mouse ' cell2mat(unique(A.mus)) ' per contrast'];
+    if ~isempty(option)
+        if isnumeric(option)
+            figtit=[figtit '(minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
+        elseif ischar(option)
+            figtit=[figtit ' - ' option];
+        end
     end
     cpsFindFig(figtit);
     clf; % clear the figure
@@ -623,12 +637,6 @@ function plotSpeedYawCurves(A,option)
         for vi = 1:numel(speeds)
             thisSpeed = speeds(vi);
             V = dpxdSubset(D,D.speed==thisSpeed);
-          
-           
-            % Choose alinewidth (faster->bolder)
-            % wid = abs(0.5 + fade*3);
-            %
-            
             idx = V.time{1}>=min(intWinSec) & V.time{1}<max(intWinSec);
             yaw(vi) = mean(V.yawMean{1}(idx));
             yawSem(vi) = mean(V.yawSEM{1}(idx));
@@ -643,9 +651,17 @@ function plotSpeedYawCurves(A,option)
         markers = 'osdv^<>ph';
         mark = markers(i);
         %lineHandles(i) = dpxPlotBounded('x',speeds,'y',yaw,'eu',yawSem,'ed',yawSem,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',.1);
-        lineHandles(i) = errorbar(speeds,yaw,yawSem,'-','Color',col,'LineWidth',wid,'Marker',mark,'MarkerSize',10,'MarkerEdgeColor','none','MarkerFaceColor',col);
+        lineHandles(i) = errorbar(speeds,yaw,yawSem,'-','Color',col,'LineWidth',wid,'Marker',mark,'MarkerSize',15,'MarkerEdgeColor','none','MarkerFaceColor',col);
         hold on;
         lineLabels{i} = num2str(contrasts(i));
+        %
+        % Store xy and contrast for output for later analysis
+        out.speeds=[out.speeds speeds];
+        out.yaw=[out.yaw yaw];
+        out.contrast=[out.contrast repmat(contrasts(i),size(yaw))];
+        out.mouse=[out.mouse repmat(A.mus(1),size(yaw))];
+        out.N=out.N+numel(yaw);
+        if ~dpxdIs(out), error('not a dpxd!!'); end
     end
     % Send all lines to the front, so they are not occluded by the
     % shaded boundaries
