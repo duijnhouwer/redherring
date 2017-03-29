@@ -4,7 +4,6 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     % jacob 20170322
     % http://youtu.be/gBXC1Ookse8
     
-    if false
     files=dpxUIgetFiles;
     disp([num2str(numel(files)) ' datafiles selected.']);
     if isempty(files)
@@ -26,16 +25,8 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     end
     P=dpxdMerge(P);
     
-    keyboard
-    else
-        load P
-        out.withinEarly='';
-        out.withinLate='';
-        out.betweenEarly='';
-        out.betweenLate='';
-        flds=fieldnames(out);
-    end
     
+    % Plot
     cpsFindFig('Yaw vs Speed plot per Median Split');
     clf;
     hold on;
