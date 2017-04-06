@@ -58,13 +58,15 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     factorNames={'medSplit','Speed','Mouse','Contrast'};
     dpxDispFancy('*ANOVA across all median split types*');
     [pVals,atab]=anovan(P.yaw,{P.medSplit P.speeds P.mouse P.contrast }...
-        ,'model',1,'varnames',factorNames...
+        ,'random',3 ... % makes mouse a random variable which should make this behave like a repeated measures anova, http://compneurosci.com/wiki/images/a/a1/Repeated_ANOVA_MATLAB.pdf
+        ,'model','full' ...
+        ,'varnames',factorNames...
         ,'Display','off');
     disp(atab)
     if pVals(1)<0.05
-        disp(['---> There is a main effect of median-split (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is a main effect of median-split (p = ' num2str(pVals(1)) ')']);
     else
-        disp(['---> There is NO main effect of median-split (p=' num2str(pVals(1)) ')']);
+        disp(['---> There is NO main effect of median-split (p = ' num2str(pVals(1)) ')']);
     end
     %
     % now do the anova separately for betweenEarly vs betweenLate and for

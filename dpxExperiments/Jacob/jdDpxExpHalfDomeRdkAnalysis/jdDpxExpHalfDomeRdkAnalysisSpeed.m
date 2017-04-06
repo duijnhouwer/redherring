@@ -489,10 +489,10 @@ function plotTimeYawCurves(A,fieldName,option)
         error('plotTimeYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    figtit=['time-yaw curves of mouse ' cell2mat(unique(A.mus)) ' per ' fieldName];
+    figtit=[cell2mat(unique(A.mus)) ' time-yaw curves per ' fieldName];
     if ~isempty(option)
         if isnumeric(option) % timeWinSec
-            figtit=[figtit ' (minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
+            figtit=[figtit ' (min. ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
         elseif ischar(option)
             figtit=[figtit ' (' option ')'];
         end
@@ -606,7 +606,7 @@ function [out]=plotSpeedYawCurves(A,option)
         error('plotSpeedYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    figtit=['Speed/yaw curves of mouse ' cell2mat(unique(A.mus)) ' per contrast'];
+    figtit=[cell2mat(unique(A.mus)) ' speed/yaw curves per contrast'];
     if ~isempty(option)
         if isnumeric(option)
             figtit=[figtit '(minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
