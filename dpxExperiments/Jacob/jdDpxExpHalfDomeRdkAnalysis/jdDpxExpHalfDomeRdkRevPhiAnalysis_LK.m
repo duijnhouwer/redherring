@@ -266,7 +266,7 @@ end
 function plotTraces(C,str)
     % Plot the traces per speed, with colored areas to highlight the difference
     % between left, static, and rightward stimulation
-    dpxFindFig(['TheWayOfTheMouse ' str]);
+    cpsFindFig(['TheWayOfTheMouse ' str]);
     nMice=numel(C);
     for i=1:nMice
         [~,order]=sort(abs(C{i}.speed));
@@ -317,9 +317,9 @@ function plotTraces(C,str)
         end
         %
         axis tight
-        dpxText(C{i}.mus{1});
-        dpxPlotHori(0,'k--');
-        dpxPlotVert(0,'k--');
+        cpsText(C{i}.mus{1});
+        cpsRefLine('-');
+        cpsRefLine('|');
         %xlabel('Time since motion onset (s)');
         %ylabel('Yaw (a.u.)');
         set(gcf, 'Color', [1,1,1]);
