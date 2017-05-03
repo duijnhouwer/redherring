@@ -8,6 +8,8 @@ function tc=calcDirectionTuningCurve(DPXD,cellNr,varargin)
     % lkDpxExpGrating-DPXD struct, its output can be plot with the
     % complementary plotDirectionTuningCurve
     
+    keyboard
+    
     % Remove trials in which the test was not enabled. Typically, this means that that
     % trial was initial, long adaptation trial which has a dummy test-stimulus.
     DPXD=dpxdSubset(DPXD,DPXD.test_enabled);
@@ -88,7 +90,8 @@ function tc=getCurve(DPXD,cellNr,varargin)
                 % trial (GCaMP is slow so might be more signal used)
                 % to=Inf;
                 stimTime=tAxis>=from & tAxis<to;
-                % Get the interval before the stim was on as a baseline
+                % Get the interval before the stim was on to determine the
+                % baseline activity
                 if strcmpi(Ds{i}.test_className{1},'dpxStimGrating')
                     from=0;
                     to=Ds{i}.test_onSec(t);
@@ -97,7 +100,7 @@ function tc=getCurve(DPXD,cellNr,varargin)
                     to=Ds{i}.test_motStartSec(t);
                 end
                 baseTime=tAxis>=from & tAxis<to;
-                % Store the mean of this segment, i.e., reduce trail's response to a single value
+                % Store the mean of this segment minus the baseline response
                 dfof(t,i)=nanmean(tSeries(stimTime))-nanmean(tSeries(baseTime));
             end
         end

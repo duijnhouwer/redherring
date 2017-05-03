@@ -1,4 +1,4 @@
-function files=jdDpxExpHalfDomeRdkRevPhiAnalysis(files)
+function files=jdDpxExpHalfDomeRdkRevPhiAnalysis_LK(files)
     if nargin==0
         files=dpxUIgetFiles;
         if isempty(files) || isempty(files{1})
@@ -7,7 +7,7 @@ function files=jdDpxExpHalfDomeRdkRevPhiAnalysis(files)
     end
     E={};
     for i=1:numel(files)
-        D=dpxdLoad(files{i});
+        D=dpxdLoad(files{i},'verbose');
         [D,str,suspect,maxCorr]=clarifyAndCheck(D);
         if ~suspect
             % Only include data files that are completely fine and have no suspicious
@@ -30,7 +30,7 @@ function files=jdDpxExpHalfDomeRdkRevPhiAnalysis(files)
     analyze(PHI,'; Phi (all delays)');
     IHP=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==1);
     analyze(IHP,'; Reverse-phi (all delays)');
-    dpxTileFigs;
+    cpsTileFigs;
     
     keyboard
     return;
@@ -220,15 +220,20 @@ function C=getMeanYawTracesPerMouse(C)
             % unequal length averaging. I don't know why that is currently commented
             % out, i must have had problems with that when i wrote it in Dec-2014. I'll
             % look into it again if the data is promising enough Jacob, 2015-05-18
+            %
+            % 2017-04-26: changed from median to mode. should always have
+            % been mode
+            
             len=[];
             for tr=1:numel(C{i}.yaw{v})
                 len(end+1)=numel(C{i}.yaw{v}{tr});
             end
-            ok=find(len==median(len));
+            ok=find(len==mode(len));
             if isempty(ok)
                 error('no trial with correct length');
             end
             % [mn,n,sd]=dpxMeanUnequalLengthVectors(C{i}.preStimYaw{v},'align','end');
+            Y=[];
             for tr=1:numel(ok)
                 Y(tr,:)=dpxMakeRow( C{i}.yaw{v}{ok(tr)} );
             end
@@ -318,8 +323,8 @@ function plotTraces(C,str)
         %
         axis tight
         cpsText(C{i}.mus{1});
-        cpsRefLine('-');
-        cpsRefLine('|');
+        cpsRefLine('-',0,'k--');
+        cpsRefLine('|',0,'k--');
         %xlabel('Time since motion onset (s)');
         %ylabel('Yaw (a.u.)');
         set(gcf, 'Color', [1,1,1]);
