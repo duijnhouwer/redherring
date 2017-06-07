@@ -44,7 +44,7 @@
             end
             D=dpxdSubset(D,t>=min(timeWinSec) & t<max(timeWinSec));
         end
-        maxFrDropsPerSec=3;
+        maxFrDropsPerSec=4;
         [D,percentBadTrials] = removeTrialWithTooManyFramedrops(D,maxFrDropsPerSec/D.window_measuredFrameRate(1)*100);
         disp(['File #' num2str(i,'%.3d') ': ' num2str(round(percentBadTrials)) '% of trials had more than ' num2str(maxFrDropsPerSec) ' video-frame drops per second']);
         if percentBadTrials>95
@@ -324,6 +324,9 @@ function C=getMeanYawTracesPerMouse(C)
             ok=find(len==median(len));
             if isempty(ok)
                 error('no trial with correct length');
+            end
+            if jdProp(len==median(len))<0.8
+                warning('lots of possibly salvageable data is being left out [w20170605]');
             end
             % [mn,n,sd]=dpxMeanUnequalLengthVectors(C{i}.preStimYaw{v},'align','end');
             for tr=1:numel(ok)
