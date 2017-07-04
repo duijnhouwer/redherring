@@ -249,7 +249,7 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseSide_dxPx{t}=D.resp_mouseSide_dxPx{t}+1920;
     end
     % Step 3, smooth the data N*16.6667 ms running average (3 60-Hz samples is 50 ms)
-    SMOOTHFAC=3;
+    SMOOTHFAC=6;
     for t=1:D.N
         D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC)';
         D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC)';
@@ -277,7 +277,15 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         SdY=[SdY D.resp_mouseSide_dyPx{t}(idx)]; %#ok<AGROW>
     end
     maxCorr=-Inf;
-    if corr(BdX(:),SdX(:))>maxCorr;
+    str='shouldhavebeenoverwritten';
+    if std(BdX)==0 || std(BdY)==0 || std(SdX)==0 || std(SdY)==0
+        warning('no variation in mouse signal, did the experimenter plug them in???');
+        suspect=true;
+        D.resp_mouseBackYaw=[];
+        D.resp_mouseSideYaw=[];
+        return;
+    end
+    if corr(BdX(:),SdX(:))>maxCorr
         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
         str='yaw are BdX and SdX - OPTION 1';
@@ -325,8 +333,8 @@ function C=getMeanYawTracesPerMouse(C)
             if isempty(ok)
                 error('no trial with correct length');
             end
-            if jdProp(len==median(len))<0.8
-                warning('lots of possibly salvageable data is being left out [w20170605]');
+            if jdProp(len==median(len))<0.9
+                error('lots of possibly salvageable data is being left out [w20170605]');
             end
             % [mn,n,sd]=dpxMeanUnequalLengthVectors(C{i}.preStimYaw{v},'align','end');
             for tr=1:numel(ok)
@@ -357,14 +365,14 @@ function C=addMeanMouse(C,minRepeats)
     for v=1:nSpeeds
         for i=1:nMice
             if C{i}.yawN{v}>=minRepeats
-                C{end}.yawRaw{v}{i}=C{i}.yawMean{v};
+                C{end}.yaw{v}{i}=C{i}.yawMean{v};
                 C{end}.yawN{v}(1)=C{end}.yawN{v}(1)+1;
                 C{end}.yawN{v}(end+1,1)=C{i}.yawN{v};
             else
                 C{end}.yawRaw{v}{i}=nan(size(C{i}.yawMean{v}));
             end
         end
-        [avg,num,sd]=dpxMeanUnequalLengthVectors(C{end}.yawRaw{v}); % ignorse nan values
+        [avg,num,sd]=dpxMeanUnequalLengthVectors(C{end}.yaw{v}); % ignorse nan values
         C{end}.yawMean{v}=avg;
         C{end}.yawSEM{v}=sd./sqrt(num);
     end
@@ -427,18 +435,19 @@ function M = poolPositiveAndNegativeSpeed(M)
     % To pool the yaw-traces for the left and right stimuli, it doesn't
     % suffice to simply flip the sign of one of them. That is because the
     % zero stimulus rotation condition often has a non-zero yaw. That is,
-    % there is a bias. Therefore, first subtract the bias of all the raw
+    % there is a bias. Therefore, first subtract the bias of all the yaw
     % traces, the merge the + and - speed, and then calculate the mean, the
-    % SEM, and the N again.
+    % SEM, and the N again. Do this on the yaw traces, not the yawRaw
+    % traces, because they don't have the pre-stim bias subtracted yet
     Z=dpxdSubset(M,M.speed==0);
     if Z.N==0
         error('no zero stimulus speed');
     end
     % 1: subtract the bias curve from all raw yaws
     biasCurve=Z.yawMean{1};
-    for v=1:numel(M.speed)
-        for r=1:numel(M.yawRaw{v})
-            M.yawRaw{v}{r}=M.yawRaw{v}{r}-biasCurve;
+    for v=1:M.N
+        for r=1:numel(M.yaw{v})
+            M.yaw{v}{r}=M.yaw{v}{r}-biasCurve;
         end
     end
     Zunbiased=dpxdSubset(M,M.speed==0);
@@ -446,29 +455,31 @@ function M = poolPositiveAndNegativeSpeed(M)
     % curves. Also update yawN, and then calcute the new mean and SEM
     absSpeeds = M.speed(M.speed>0);
     for v=1:numel(absSpeeds)
-        P{v}=dpxdSubset(M,M.speed==absSpeeds(v));
-        N{v}=dpxdSubset(M,M.speed==-absSpeeds(v));
+        P{v}=dpxdSubset(M,M.speed==absSpeeds(v)); % positive speed subset
+        N{v}=dpxdSubset(M,M.speed==-absSpeeds(v)); % corresponding negative speed subset
         % flip the -stim yaw curves
-        N{v}.yawRaw{1} = cellfun(@(x)mtimes(-1,x),N{v}.yawRaw{1},'UniformOutput',false);
-        % add them to corresponding +stim yaw curves
-        P{v}.yawRaw{1} = [P{v}.yawRaw{1} N{v}.yawRaw{1}];
+        N{v}.yaw{1} = cellfun(@(x)mtimes(-1,x),N{v}.yaw{1},'UniformOutput',false);
+        % concatenate them to the corresponding +stim yaw curves
+        P{v}.yaw{1} = [P{v}.yaw{1} N{v}.yaw{1}];
         % also update the yawN; Note: this will be wrong and might crash if
         % a mouse does have not have a positive and negative curve. no time
         % to check for this now, let's hope it never happens or that this
         % comment will make a solution simple.
         P{v}.yawN{1}(1) = mean([P{v}.yawN{1}(1) N{v}.yawN{1}(1)]); % number of mice whose data went into the line
-        P{v}.yawN{1}(2:end) =  P{v}.yawN{1}(2:end)+N{v}.yawN{1}(2:end); % number of traces per mouse
+        P{v}.yawN{1}(2:end) = P{v}.yawN{1}(2:end)+N{v}.yawN{1}(2:end); % number of traces per mouse
         % calculate the new Mean and SEM for the pooled curves
-        [avg,num,sd]=dpxMeanUnequalLengthVectors(P{v}.yawRaw{1}); % ignores nan values
+        [avg,num,sd]=dpxMeanUnequalLengthVectors(P{v}.yaw{1}); % ignores nan values
         P{v}.yawMean{1}=avg;
         P{v}.yawSEM{1}=sd./sqrt(num);
     end
     % 3. COmbine all positive speeds into one DPXD
     P=dpxdMerge(P);
-    % 4. Calculate the new mean and SEm of the zero condition, this should
-    % result in a flat mean-line by definition. Instead of just filling in
-    % zeros really do the calculation as an internal consisteny check
-    [avg,num,sd]=dpxMeanUnequalLengthVectors(Zunbiased.yawRaw{1}); % ignores nan values
+    % 4. Calculate the new mean and SEM of the zero-speed condition, this
+    % should result in a flat mean-line by definition. Instead of just
+    % filling in zeros really do the calculation as an internal consisteny
+    % check
+    % 2017-07-04: the values are not zero... they are close, but not zero
+    [avg,num,sd]=dpxMeanUnequalLengthVectors(Zunbiased.yaw{1}); % ignores nan values
     Zunbiased.yawMean{1}=avg;
     Zunbiased.yawSEM{1}=sd./sqrt(num);
     % 5. Combine the pooled-positive and the unbiased zero speed data into 1 DPXD
@@ -478,7 +489,7 @@ end
 
 function plotTimeYawCurves(A,fieldName,option)
     % Plot the Yaw as a function of time. Different colors indicate
-    % different speeds. Data is split out in panels according to fieldNAme,
+    % different speeds. Data is split out in panels according to fieldName,
     % which could be, for example, 'contrast'
     narginchk(3,3);
     global intWinSec;
@@ -520,17 +531,23 @@ function plotTimeYawCurves(A,fieldName,option)
             thisSpeed = D.speed(vi);
             V = dpxdSubset(D,D.speed==thisSpeed);
             fade = abs(thisSpeed)/max(D.speed);
-            colmap = colormap('winter'); % goes from blue to green
-            % make it go from blue to red, (cold --> hot)
-            tmp = colmap(:,1);
-            colmap(:,1)=colmap(:,2);
-            colmap(:,2)=tmp; clear tmp;
+            jacobVoorHetZeggen=false;
+            if jacobVoorHetZeggen
+                colmap = colormap('winter'); % goes from blue to green
+                % make it go from blue to red, (cold --> hot)
+                tmp = colmap(:,1);
+                colmap(:,1)=colmap(:,2);
+                colmap(:,2)=tmp; clear tmp;
+            else
+                colmap = flipud(colormap('hsv'));
+                colmap(1,:)=[0 0 0];
+            end
             % select the color for this line from the colmap
             colidx = round(size(colmap,1)*fade);
             colidx = max(colidx,1); % prevent 0-index
             col = colmap(colidx,:); % the line color
             % Choose a linewidth (faster->bolder)
-            wid = abs(0.5 + fade*3);
+            wid = 2;% abs(0.5 + fade*3);
             %
             t = V.time{1};
             y = V.yawMean{1};
@@ -547,7 +564,7 @@ function plotTimeYawCurves(A,fieldName,option)
                 sem=sem(1:numel(t));
             end
             [hl,hb]=dpxPlotBounded('x',t(1:numel(y)),'y',y,'eu',sem,'ed',sem ...
-                ,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',1/5);
+                ,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',1/10);
             hold on;
             % ugly-print the number of mice that this line is the mean from
             % and the number of repeats that went into each mouse's line
