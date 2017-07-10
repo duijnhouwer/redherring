@@ -124,7 +124,7 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseSide_dxPx{t}=D.resp_mouseSide_dxPx{t}+1920;
     end
     % Step 3, smooth the data N*16.6667 ms running average (3 60-Hz samples is 50 ms)
-    SMOOTHFAC=3;
+    SMOOTHFAC=6;
     for t=1:D.N
         D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC)';
         D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC)';
@@ -152,7 +152,7 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         SdY=[SdY D.resp_mouseSide_dyPx{t}(idx)]; %#ok<AGROW>
     end
     maxCorr=-Inf;
-    if corr(BdX(:),SdX(:))>maxCorr;
+    if corr(BdX(:),SdX(:))>maxCorr
         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
         str='yaw are BdX and SdX - OPTION 1';
@@ -237,7 +237,7 @@ end
 function plotTraces(C,str)
     % Plot the traces per speed, with colored areas to highlight the difference
     % between left, static, and rightward stimulation
-    dpxFindFig(['TheWayOfTheMouse ' str]);
+    cpsFindFig(['TheWayOfTheMouse ' str]);
     nMice=numel(C);
     for i=1:nMice
         [~,order]=sort(abs(C{i}.speed));
@@ -320,7 +320,7 @@ end
 
 
 function plotDriftScatter(C,titleString)
-    dpxFindFig(['DriftScatter' titleString]);
+    cpsFindFig(['DriftScatter' titleString]);
     x=[];
     y=[];
     for i=1:numel(C)-1 % don't include the pooled mouse
@@ -334,7 +334,7 @@ end
 
 
 function plotAllYawToCheckClipping(C,titleString)
-    dpxFindFig(['YawBreaker' titleString]);
+    cpsFindFig(['YawBreaker' titleString]);
     for i=1:numel(C)
         subplot(ceil(numel(C)/5),5,i);
         for s=1:numel(C{i}.yawRaw)

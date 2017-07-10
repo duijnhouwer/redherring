@@ -313,6 +313,12 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         suspect=true;
         %   keyboard
     end
+    % Step 5: Convert yaw pixels/frame to deg/s (added 20170710)
+    scalar = jdDpxExpHalfDomeAuToDps;
+    for i=1:numel(D.resp_mouseBackYaw)
+        D.resp_mouseBackYaw{i}=D.resp_mouseBackYaw{i}*scalar;
+        D.resp_mouseSideYaw{i}=D.resp_mouseSideYaw{i}*scalar;
+    end
 end
 
 
