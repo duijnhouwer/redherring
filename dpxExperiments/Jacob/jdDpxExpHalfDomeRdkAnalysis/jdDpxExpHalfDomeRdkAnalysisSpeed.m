@@ -599,7 +599,7 @@ function plotTimeYawCurves(A,fieldName,option)
         % set the label strings
         if i==1
             xlabel('Time since motion onset (s)');
-            ylabel('Yaw (AU/s)');
+            ylabel('Yaw (deg/s)');
         end
         % add a title to each panels, and legend to the first
         if values(i)==-1
@@ -697,7 +697,7 @@ function [out]=plotSpeedYawCurves(A,option)
     % cpsLimimts(
     set(gca,'XTick',speeds);
     xlabel('Stimulus speed (deg/s)');
-    ylabel('Yaw (AU/s)');
+    ylabel('Yaw (deg/s)');
     legend(gca,lineHandles,lineLabels,'Location','NorthWest');
 end
 
