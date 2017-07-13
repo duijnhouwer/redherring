@@ -42,7 +42,7 @@ function scalar = jdDpxExpHalfDomeAuToDps
     % enough info to convert px per frame (what we used to call arbitrary
     % units) to deg per second. This scalar is 
     
-    scalar = ballDps/nanmean(roll);
+    scalar = ballDps/nanmean(roll); %1.77
     
     % i.e., multiply the pixel per frame value by scalar to get deg/s
     
