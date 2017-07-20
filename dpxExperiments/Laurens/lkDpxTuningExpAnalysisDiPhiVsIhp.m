@@ -6,12 +6,12 @@ function lkDpxTuningExpAnalysisDiPhiVsIhp(D,filterMode,normalize)
         error(whynot)
     end
     
-    if nargin<2
+    if ~exist('filterMode') || isempty(filterMode)
         filterMode='includeall';
     end
-    if nargin<3
+     if ~exist('normalize') || isempty(normalize)
         normalize=true;
-    end
+     end
         
     
     % Split D into a struct per cell recorded in each separate file (this
@@ -28,9 +28,13 @@ function lkDpxTuningExpAnalysisDiPhiVsIhp(D,filterMode,normalize)
     for i = 1:numel(C)
         [PHI,IHP] = dpxdSubset(C{i},strcmpi(C{i}.motType,'phi'));
         if normalize
-            all=[PHI.allDFoF{1}(:); IHP.allDFoF{1}(:)];
-            normPhi=(PHI.allDFoF{1}-nanmean(all))./nanstd(all);
-            normIhp=(IHP.allDFoF{1}-nanmean(all))./nanstd(all);            
+            globalMean=nanmean([PHI.allDFoF{1}(:); IHP.allDFoF{1}(:)]);
+            normPhi=PHI.allDFoF{1};
+            %normPhi(:,1)=normPhi(:,1)./nanstd(
+            
+            
+            normPhi=(PHI.allDFoF{1}-nanmean(all))./nanstd(PHI.allDFoF{1});
+            normIhp=(IHP.allDFoF{1}-nanmean(all))./nanstd(IHP.allDFoF{1});            
             diPhi=diff(mean(normPhi,1));
             diIhp=diff(mean(normIhp,1));
         else
@@ -38,17 +42,17 @@ function lkDpxTuningExpAnalysisDiPhiVsIhp(D,filterMode,normalize)
             diIhp=diff(IHP.meanDFoF{1});
         end
         if strcmpi(filterMode,'phiSignificant')
-            if ttest2(PHI.allDFoF{1}(:,1),PHI.allDFoF{1}(:,2),'alpha',0.05)
+            if ttest2(PHI.allDFoF{1}(:,1),PHI.allDFoF{1}(:,2),'alpha',0.1)
                 DI.phi(end+1) = diPhi;
                 DI.ihp(end+1) = diIhp;
             end
         elseif strcmpi(filterMode,'ihpsignificant')
-            if ttest2(IHP.allDFoF{1}(:,1),IHP.allDFoF{1}(:,2),'alpha',0.05)
+            if ttest2(IHP.allDFoF{1}(:,1),IHP.allDFoF{1}(:,2),'alpha',0.1)
                 DI.phi(end+1) = diPhi;
                 DI.ihp(end+1) = diIhp;
             end
         elseif strcmpi(filterMode,'bothsignificant')
-            if ttest2(PHI.allDFoF{1}(:,1),PHI.allDFoF{1}(:,2),'alpha',0.05) && ttest2(IHP.allDFoF{1}(:,1),IHP.allDFoF{1}(:,2),'alpha',0.05)
+            if ttest2(PHI.allDFoF{1}(:,1),PHI.allDFoF{1}(:,2),'alpha',0.05,'vartype','unequal') && ttest2(IHP.allDFoF{1}(:,1),IHP.allDFoF{1}(:,2),'alpha',0.05,'vartype','unequal')
                 DI.phi(end+1) = diPhi;
                 DI.ihp(end+1) = diIhp;
             end
