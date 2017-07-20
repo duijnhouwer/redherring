@@ -604,6 +604,7 @@ function plotTimeYawCurves(A,fieldName,option)
     end
     %  Give all panels the same range on the X and Y axes
     cpsUnifyAxes('XY');
+    cpsLabelPanels;
 end
 
 
@@ -738,28 +739,8 @@ function plotCtrlVarYawCurves(figtit,curves,option,ctrlVar)
     xlabel([ctrlVar ' (UNIT)']);
     ylabel('Yaw (deg/s)');
     legend(gca,lineHandles,lineLabels,'Location','NorthWest');
+    cpsLabelPanels;
 end
-
-function A=prepForAnova(A)
-    A = poolPositiveAndNegativeSpeed(A);
-    % remove unnecessary fields
-    A=rmfield(A,{'yawRaw','yawSEM','yawN','yawMean'});
-    % remove the mean mouse
-    A=dpxdSubset(A,~strcmpi(A.mus,'MEAN'));
-    % remove the pooled ctrlVars
-    A=dpxdSubset(A,A.ctrlVar~=-1);
-    % get raw-yaw integrals over 1 and 2 seconds since stim-on
-    for i=1:A.N
-        A.yawIntegral{i}=nan(size(A.yaw{i}));
-        for tr=1:numel(A.yaw{i})
-            idx=A.time{i}>=1.0 & A.time{i}<2.0;
-            A.yawIntegral{i}(tr)=mean(A.yaw{i}{tr}(idx));
-        end
-    end
-    A=rmfield(A,{'yaw','time'});
-    A=dpxdUnfold(A,'yawIntegral');
-end
-
 
 function A=splitByContrast(E)
     
