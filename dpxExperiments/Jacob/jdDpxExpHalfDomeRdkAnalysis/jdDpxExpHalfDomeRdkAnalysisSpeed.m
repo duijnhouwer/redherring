@@ -1,13 +1,15 @@
- function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,ctrlVar)
-     
-     % Analyze halfdome mouse on ball data
-     % see also:
-     %    jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
-     %    jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
-     %
-     % ctrlVar is the controlled variable to split the data, e.g.
-     % 'contrast', 'dotdiam'. 'contrast' is the default
-     
+function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
+    
+    % Analyze halfdome mouse on ball data
+    % see also:
+    %    jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
+    %    jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
+    %
+    
+    if ~any(strcmpi(gainOrYaw,{'gain','yaw'}))
+        error('gainOrYaw must be ''gain'' or ''yaw''');
+    end
+    
     global intWinSec
     intWinSec=[1 2]; % time window over which mean yaw is taken
     
@@ -32,9 +34,6 @@
         if ~any(strcmpi(option,strs))
             error(['unknown option, should be one of ' sprintf('%s ',strs{:})]);
         end
-    end
-    if ~exist('fieldName','var') || isempty(ctrlVar)
-        ctrlVar='contrast';
     end
     E={};
     out.nFilesWithDataWithinWindow=0;
@@ -96,36 +95,26 @@
                 error('???');
         end
     end
-    %
-    % Add a mean background luminance field to E based on the RGBAfrac values
-    % by calculates the mean of the first 3 elements of each 4-element array in
-    % cell array E.mask_RGBAfrac
-    %
-    % HOEPLA,20160630: nu is de luminantie bepaald door rdk_RGBAfrac1, niet mask_RGBAfrac
-    %
     if E.N==0
         keyboard
     end
-    E.mask_grayFrac=cellfun(@(x)mean(x(1:3)),E.rdk_RGBAfrac1);
-    E.mask_grayFrac=round(E.mask_grayFrac*1000)/1000; % round to remove precission errors
-    lumsUsed=unique(E.mask_grayFrac);
-    lumsUsed=[lumsUsed -1]; % add -1 to analyze the pooled data also
-    %
-    % Run the analyze function for the each luminance separately. collect
-    % in a cell array called A (for Analysis)
-    A = {}; % start empty
-    for i=1:numel(lumsUsed)
-        if lumsUsed(i)==-1
-            tmpA = analyzeAcrossMiceAndSpeeds(E); % all lums
-        else
-            tmpA = analyzeAcrossMiceAndSpeeds(dpxdSubset(E,E.mask_grayFrac==lumsUsed(i)));
-        end
-        % Add a luminance field to all the mouse data
-        for mi = 1:numel(tmpA) % mi for mouse index
-            tmpA{mi}.ctrlVar = ones(1,tmpA{mi}.N) * lumsUsed(i);
-        end
-        A = [A tmpA];
+    
+    nDotsizes=numel(unique(E.rdk_dotDiamPx));
+    lums=nan(1,E.N);
+    for i=1:E.N
+        lums(i)=E.mask_RGBAfrac{i}(1);
     end
+    nContrasts=numel(unique(lums));
+    if nDotsizes>1 && nContrasts==1
+        ctrlVar='dotdiam';
+         A=splitByDotDiam(E);
+    elseif nDotsizes==1 && nContrasts>1 || nDotsizes==1 && nContrasts==1
+        ctrlVar='contrast';
+        A=splitByContrast(E);
+    else
+        error('both dotdiam and contrast vary, select other files');
+    end
+    
     A = dpxdMerge(A); % combine into one DPXD again
     %
     % Plot the speed curves for each mouse and the mean in separate panels for ctrlVar
@@ -134,11 +123,12 @@
     for i=1:numel(miceNames)
         M = dpxdSubset(A,strcmpi(A.mus,miceNames{i}));
         plotTimeYawCurves(M,ctrlVar,option);
-        curves{end+1}=plotSpeedYawCurves(M,option);
+        [curves{end+1},figtit]=plotSpeedYawCurves(M,option,ctrlVar,gainOrYaw);  %#ok<AGROW>
+        plotCtrlVarYawCurves(figtit,curves{end},option,ctrlVar);
     end
     % Output for further analysis
     out.curves=dpxdMerge(curves);
- end
+end
 
 
 function C = analyzeAcrossMiceAndSpeeds(E)
@@ -587,7 +577,7 @@ function plotTimeYawCurves(A,fieldName,option)
                 lineLabels{vi} = [num2str(thisSpeed) ' deg/s'];
             end
         end
-  
+        
         % make the time axis run from -.75 to 3 seconds
         axlims = axis;
         axlims(1:2) = [-.5 3];
@@ -618,12 +608,12 @@ end
 
 
 
-function [out]=plotSpeedYawCurves(A,option)
+function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
-    narginchk(2,2);
     out.speeds=[];
     out.yaw=[];
+    out.yawSem=[];
     out.ctrlVar=[];
     out.mouse={};
     out.N=0;
@@ -635,7 +625,7 @@ function [out]=plotSpeedYawCurves(A,option)
         error('plotSpeedYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    figtit=[cell2mat(unique(A.mus)) ' speed/yaw curves per CTRLVAR'];
+    figtit=[cell2mat(unique(A.mus)) ' speed/yaw curves per ' ctrlVar];
     if ~isempty(option)
         if isnumeric(option)
             figtit=[figtit '(minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
@@ -643,13 +633,22 @@ function [out]=plotSpeedYawCurves(A,option)
             figtit=[figtit ' - ' option];
         end
     end
-    cpsFindFig(figtit);
-    clf; % clear the figure
+    figtit=[figtit ' - ' gainOrYaw];
+    figHandle=cpsFindFig(figtit);
+    clf; % clear the figures
+    subplot(1,2,1);
+    
     % Remove the -1 ctrlVar data that contains the yaw pooled over all
     % ctrlVars (not split out according to ctrlVar)
     A=dpxdSubset(A,A.ctrlVar~=-1);
     % Get a list of the (remaining) unique ctrlVar values
     ctrlVars = unique(A.ctrlVar);
+    if numel(ctrlVars)>1
+        ctrlVarsNorm = ctrlVars-min(ctrlVars);
+        ctrlVarsNorm = ctrlVarsNorm/max(ctrlVarsNorm);
+    else
+        ctrlVarsNorm=0.5;
+    end
     % Get a list of unique absolute speeds. They are assumed to be present
     % and equal among all mice
     speeds = unique(abs(A.speed));
@@ -669,14 +668,19 @@ function [out]=plotSpeedYawCurves(A,option)
             idx = V.time{1}>=min(intWinSec) & V.time{1}<max(intWinSec);
             yaw(vi) = mean(V.yawMean{1}(idx));
             yawSem(vi) = mean(V.yawSEM{1}(idx));
+            if strcmpi(gainOrYaw,'gain')
+                yaw(vi)=yaw(vi)/speeds(vi);
+                yawSem(vi)=yawSem(vi)/speeds(vi);
+            end
         end
+        
         
         colmap = flipud(colormap('parula')); % flip so that highest ctrlVar has highest ctrlVar color (black)
         % select the color for this line from the colmap
-        colidx = round(size(colmap,1)*(0.2+0.8*ctrlVars(i))); % use only 80% of colmap (white/yellow is too bright)
+        colidx = round(size(colmap,1)*(0.2+0.8*ctrlVarsNorm(i))); % use only 80% of colmap (white/yellow is too bright)
         colidx = max(colidx,1); % prevent 0-index
         col = colmap(colidx,:); % the line color
-        wid = 0.5 + ctrlVars(i)*2;
+        wid = 0.5 + ctrlVarsNorm(i)*2;
         markers = 'osdv^<>ph';
         mark = markers(i);
         %lineHandles(i) = dpxPlotBounded('x',speeds,'y',yaw,'eu',yawSem,'ed',yawSem,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',.1);
@@ -684,31 +688,63 @@ function [out]=plotSpeedYawCurves(A,option)
         hold on;
         lineLabels{i} = num2str(ctrlVars(i));
         %
+        
         % Store xy and ctrlVar for output for later analysis
         out.speeds=[out.speeds speeds];
         out.yaw=[out.yaw yaw];
+        out.yawSem=[out.yawSem yawSem];
         out.ctrlVar=[out.ctrlVar repmat(ctrlVars(i),size(yaw))];
         out.mouse=[out.mouse repmat(A.mus(1),size(yaw))];
         out.N=out.N+numel(yaw);
-        if ~dpxdIs(out), error('not a dpxd!!'); end
     end
+    if ~dpxdIs(out), error('not a dpxd!!'); end
     % Send all lines to the front, so they are not occluded by the
     % shaded boundaries
     cpsArrange(lineHandles,'front')
-    % make the time axis run from -.75 to 3 seconds
-
-    % cpsLimimts(
     set(gca,'XTick',speeds);
     xlabel('Stimulus speed (deg/s)');
+    if strcmpi(gainOrYaw,'gain')
+        ylabel('OMR gain');
+    else
+        ylabel('Yaw (deg/s)');
+    end
+    legend(gca,lineHandles,lineLabels,'Location','NorthWest');
+end
+
+function plotCtrlVarYawCurves(figtit,curves,option,ctrlVar)
+    figHandle=cpsFindFig(figtit);
+    subplot(1,2,2);
+    uCtrlVars=unique(curves.ctrlVar);
+    uSpeeds=unique(curves.speeds);
+    uSpeedsNorm=uSpeeds-min(uSpeeds);
+    uSpeedsNorm=uSpeedsNorm./max(uSpeedsNorm);
+    curves=dpxdSplit(curves,'speeds');
+    for i=1:numel(curves)
+        colmap = flipud(colormap('parula')); % flip so that highest ctrlVar has highest ctrlVar color (black)
+        % select the color for this line from the colmap
+        colidx = round(size(colmap,1)*(0.2+0.8*uSpeedsNorm(i))); % use only 80% of colmap (white/yellow is too bright)
+        colidx = max(colidx,1); % prevent 0-index
+        col = colmap(colidx,:); % the line color
+        wid = 0.5 + uSpeedsNorm(i)*2;
+        markers = 'osdv^<>ph';
+        mark = markers(i);
+        %lineHandles(i) = dpxPlotBounded('x',speeds,'y',yaw,'eu',yawSem,'ed',yawSem,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',.1);
+        lineHandles(i) = errorbar(curves{i}.ctrlVar,curves{i}.yaw,curves{i}.yawSem,'-','Color',col,'LineWidth',wid,'Marker',mark,'MarkerSize',15,'MarkerEdgeColor','none','MarkerFaceColor',col);
+        hold on;
+        lineLabels{i} = num2str(curves{i}.speeds(1));
+    end
+    % cpsLimimts(
+    % set(gca,'XTick',uCtrlVars);
+    xlabel([ctrlVar ' (UNIT)']);
     ylabel('Yaw (deg/s)');
     legend(gca,lineHandles,lineLabels,'Location','NorthWest');
 end
 
 function A=prepForAnova(A)
-     A = poolPositiveAndNegativeSpeed(A);
+    A = poolPositiveAndNegativeSpeed(A);
     % remove unnecessary fields
     A=rmfield(A,{'yawRaw','yawSEM','yawN','yawMean'});
-	% remove the mean mouse
+    % remove the mean mouse
     A=dpxdSubset(A,~strcmpi(A.mus,'MEAN'));
     % remove the pooled ctrlVars
     A=dpxdSubset(A,A.ctrlVar~=-1);
@@ -725,7 +761,66 @@ function A=prepForAnova(A)
 end
 
 
+function A=splitByContrast(E)
+    
+    % Add a mean background luminance field to E based on the RGBAfrac values
+    % by calculates the mean of the first 3 elements of each 4-element array in
+    % cell array E.mask_RGBAfrac
+    %
+    % HOEPLA,20160630: nu is de luminantie bepaald door rdk_RGBAfrac1, niet mask_RGBAfrac
+    %
+    E.mask_grayFrac=cellfun(@(x)mean(x(1:3)),E.rdk_RGBAfrac1);
+    E.mask_grayFrac=round(E.mask_grayFrac*1000)/1000; % round to remove precission errors
+    lumsUsed=unique(E.mask_grayFrac);
+    lumsUsed=[lumsUsed -1]; % add -1 to analyze the pooled data also
+    %
+    % Run the analyze function for the each luminance separately. collect
+    % in a cell array called A (for Analysis)
+    A = {}; % start empty
+    for i=1:numel(lumsUsed)
+        if lumsUsed(i)==-1
+            tmpA = analyzeAcrossMiceAndSpeeds(E); % all lums
+        else
+            tmpA = analyzeAcrossMiceAndSpeeds(dpxdSubset(E,E.mask_grayFrac==lumsUsed(i)));
+        end
+        % Add a luminance field to all the mouse data
+        for mi = 1:numel(tmpA) % mi for mouse index
+            tmpA{mi}.ctrlVar = ones(1,tmpA{mi}.N) * lumsUsed(i);
+        end
+        A = [A tmpA];
+    end
+end
 
+
+function A=splitByDotDiam(E)
+    % "dots" on the screen in this experiment were clusters, or groups of
+    % dots so that the shape of the dot could remain maximally circular at
+    % all eccentrities in the projection dome.
+    % Calculate the diameter of the "clusters", it's a sum of the cluster
+    % diameter and the diamter of the dots that comprise the cluster
+    
+    degPerPx = 270/E.window_rectPx{1}(3); % the projection dome covered 270 deg
+    E.dotRadiusCorrected = E.rdk_clusterRadiusDeg + E.rdk_dotDiamPx/2*degPerPx;
+    
+    radiiUsed=unique(E.dotRadiusCorrected);
+    radiiUsed=[radiiUsed -1]; % add -1 to analyze the pooled data also
+    %
+    % Run the analyze function for the each dotdiam separately. collect
+    % in a cell array called A (for Analysis)
+    A = {}; % start empty
+    for i=1:numel(radiiUsed)
+        if radiiUsed(i)==-1
+            tmpA = analyzeAcrossMiceAndSpeeds(E); % all lums
+        else
+            tmpA = analyzeAcrossMiceAndSpeeds(dpxdSubset(E,E.dotRadiusCorrected==radiiUsed(i)));
+        end
+        % Add a luminance field to all the mouse data
+        for mi = 1:numel(tmpA) % mi for mouse index
+            tmpA{mi}.ctrlVar = ones(1,tmpA{mi}.N) * radiiUsed(i);
+        end
+        A = [A tmpA];
+    end
+end
 
 
 

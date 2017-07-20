@@ -1,8 +1,11 @@
-function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
+function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate(gainOrYaw)
     
     % see also: jdDpxExpHalfDomeRdkAnalysisSpeed
     % jacob 20170322
     
+    if ~any(strcmpi(gainOrYaw,{'gain','yaw'}))
+        error('gainOrYaw must be ''gain'' or ''yaw''');
+    end
     
     files=dpxUIgetFiles;
     disp([num2str(numel(files)) ' datafiles selected.']);
@@ -11,10 +14,10 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     end
     
     
-    out.withinEarly = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinEarly');
-    out.withinLate = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinLate');
-    out.betweenEarly = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenEarly');
-    out.betweenLate = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenLate');
+    out.withinEarly = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinEarly',gainOrYaw);
+    out.withinLate = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinLate',gainOrYaw);
+    out.betweenEarly = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenEarly',gainOrYaw);
+    out.betweenLate = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenLate',gainOrYaw);
     
     cpsTileFigs
     
@@ -64,10 +67,10 @@ end
 
 
 function  regularOldStyleAnova(P)
-    factorNames={'medSplit','Speed','Mouse','Contrast'};
+    factorNames={'medSplit','Speed','Mouse','CtrlVar'};
     dpxDispFancy('*ANOVA across all median split types*');
-    if numel(P.contrast)>1
-    [pVals,atab]=anovan(P.yaw,{P.medSplit P.speeds P.mouse P.contrast }...
+    if numel(P.ctrlVar)>1
+    [pVals,atab]=anovan(P.yaw,{P.medSplit P.speeds P.mouse P.ctrlVar }...
    ...  ,'random',3 ... % makes mouse a random variable which should make this behave like a repeated measures anova, http://compneurosci.com/wiki/images/a/a1/Repeated_ANOVA_MATLAB.pdf
         ,'model',1 ...
         ,'continuous',[2 4] ...
@@ -86,7 +89,7 @@ function  regularOldStyleAnova(P)
     [B,W]=dpxdSubset(P,strcmpi(P.medSplit,'betweenEarly') | strcmpi(P.medSplit,'betweenLate'));
     % BETWEEN SESSIONS
     dpxDispFancy('*ANOVA across median split types betweenEarly-vs-betweenLate*');
-    [pVals,atab]=anovan(B.yaw,{B.medSplit B.speeds B.mouse B.contrast }...
+    [pVals,atab]=anovan(B.yaw,{B.medSplit B.speeds B.mouse B.ctrlVar }...
         ,'model',1,'varnames',factorNames...
         ,'continuous',[2 4] ...
         ,'Display','off');
@@ -98,7 +101,7 @@ function  regularOldStyleAnova(P)
     end
     % WITHIN SESSIONS
     dpxDispFancy('*ANOVA across median split types withinEarly-vs-withinLate*');
-    [pVals,atab]=anovan(W.yaw,{W.medSplit W.speeds W.mouse W.contrast }...
+    [pVals,atab]=anovan(W.yaw,{W.medSplit W.speeds W.mouse W.ctrlVar }...
         ,'model',1,'varnames',factorNames...
         ,'continuous',[2 4] ...
         ,'Display','off');
