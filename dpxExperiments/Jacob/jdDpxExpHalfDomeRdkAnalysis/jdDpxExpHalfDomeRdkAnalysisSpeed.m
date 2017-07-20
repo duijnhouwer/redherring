@@ -1,9 +1,12 @@
- function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option)
+ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,ctrlVar)
      
      % Analyze halfdome mouse on ball data
      % see also:
      %    jdDpxExpHalfDomeRdkAnalysisSpeedSlidWin
      %    jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
+     %
+     % ctrlVar is the controlled variable to split the data, e.g.
+     % 'contrast', 'dotdiam'. 'contrast' is the default
      
     global intWinSec
     intWinSec=[1 2]; % time window over which mean yaw is taken
@@ -30,6 +33,9 @@
             error(['unknown option, should be one of ' sprintf('%s ',strs{:})]);
         end
     end
+    if ~exist('fieldName','var') || isempty(ctrlVar)
+        ctrlVar='contrast';
+    end
     E={};
     out.nFilesWithDataWithinWindow=0;
     for i=1:numel(files)
@@ -44,7 +50,7 @@
             end
             D=dpxdSubset(D,t>=min(timeWinSec) & t<max(timeWinSec));
         end
-        maxFrDropsPerSec=4;
+        maxFrDropsPerSec=3;
         [D,percentBadTrials] = removeTrialWithTooManyFramedrops(D,maxFrDropsPerSec/D.window_measuredFrameRate(1)*100);
         disp(['File #' num2str(i,'%.3d') ': ' num2str(round(percentBadTrials)) '% of trials had more than ' num2str(maxFrDropsPerSec) ' video-frame drops per second']);
         if percentBadTrials>95
@@ -116,18 +122,18 @@
         end
         % Add a luminance field to all the mouse data
         for mi = 1:numel(tmpA) % mi for mouse index
-            tmpA{mi}.contrast = ones(1,tmpA{mi}.N) * lumsUsed(i);
+            tmpA{mi}.ctrlVar = ones(1,tmpA{mi}.N) * lumsUsed(i);
         end
         A = [A tmpA];
     end
     A = dpxdMerge(A); % combine into one DPXD again
     %
-    % Plot the speed curves for each mouse and the mean in separate panels for contrast
+    % Plot the speed curves for each mouse and the mean in separate panels for ctrlVar
     miceNames=unique(A.mus);
     curves={};
     for i=1:numel(miceNames)
         M = dpxdSubset(A,strcmpi(A.mus,miceNames{i}));
-        plotTimeYawCurves(M,'contrast',option);
+        plotTimeYawCurves(M,ctrlVar,option);
         curves{end+1}=plotSpeedYawCurves(M,option);
     end
     % Output for further analysis
@@ -502,9 +508,6 @@ function plotTimeYawCurves(A,fieldName,option)
     if ~dpxdIs(A)
         error('First argument should be a DPXD');
     end
-    if ~ischar(fieldName) || ~isfield(A,fieldName)
-        error('Second argument should be fieldname of the DPXD (first input)');
-    end
     if numel(unique(A.mus))>1
         error('plotTimeYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
@@ -520,7 +523,7 @@ function plotTimeYawCurves(A,fieldName,option)
     cpsFindFig(figtit);
     clf; % clear the figure
     % Get a list of the unique values of fieldName
-    values = unique(A.(fieldName));
+    values = unique(A.ctrlVar);
     % How many subplot will we need?
     nSubPlots = numel(values);
     % Decide on the number of colums and rows for the subplot
@@ -528,7 +531,7 @@ function plotTimeYawCurves(A,fieldName,option)
     nRows = floor(sqrt(nSubPlots));
     % Iterate over the different values of fieldname
     for i = 1:numel(values)
-        D = dpxdSubset(A,A.(fieldName)==values(i));
+        D = dpxdSubset(A,A.ctrlVar==values(i));
         D = poolPositiveAndNegativeSpeed(D);
         subplot(nRows,nCols,i);
         [lineHandles,boundHandles] = deal(nan(size(D.speed)));
@@ -603,10 +606,10 @@ function plotTimeYawCurves(A,fieldName,option)
         end
         % add a title to each panels, and legend to the first
         if values(i)==-1
-            title('Pooled over contrasts');
+            title(['Pooled over ' fieldName 's']);
             legend(gca,lineHandles,lineLabels,'Location','NorthWest');
         else
-            title(['Contrast = ' num2str(values(i),'%.2f')]);
+            title([fieldName ' = ' num2str(values(i),'%.2f')]);
         end
     end
     %  Give all panels the same range on the X and Y axes
@@ -621,7 +624,7 @@ function [out]=plotSpeedYawCurves(A,option)
     narginchk(2,2);
     out.speeds=[];
     out.yaw=[];
-    out.contrast=[];
+    out.ctrlVar=[];
     out.mouse={};
     out.N=0;
     global intWinSec
@@ -632,7 +635,7 @@ function [out]=plotSpeedYawCurves(A,option)
         error('plotSpeedYawCurves is designed to plot the data of one mouse (typically the ''mean'' mouse)');
     end
     % open the figure
-    figtit=[cell2mat(unique(A.mus)) ' speed/yaw curves per contrast'];
+    figtit=[cell2mat(unique(A.mus)) ' speed/yaw curves per CTRLVAR'];
     if ~isempty(option)
         if isnumeric(option)
             figtit=[figtit '(minute ' num2str(min(option/60)) ' to ' num2str(max(option/60)) ')'];
@@ -642,20 +645,20 @@ function [out]=plotSpeedYawCurves(A,option)
     end
     cpsFindFig(figtit);
     clf; % clear the figure
-    % Remove the -1 contrast data that contains the yaw pooled over all
-    % contrasts (not split out according to contrast)
-    A=dpxdSubset(A,A.contrast~=-1);
-    % Get a list of the (remaining) unique contrast values
-    contrasts = unique(A.contrast);
+    % Remove the -1 ctrlVar data that contains the yaw pooled over all
+    % ctrlVars (not split out according to ctrlVar)
+    A=dpxdSubset(A,A.ctrlVar~=-1);
+    % Get a list of the (remaining) unique ctrlVar values
+    ctrlVars = unique(A.ctrlVar);
     % Get a list of unique absolute speeds. They are assumed to be present
     % and equal among all mice
     speeds = unique(abs(A.speed));
     speeds(speeds==0)=[];
-    % Iterate over the different contrasts
-    lineHandles = nan(size(contrasts));
-    lineLabels = cell(size(contrasts));
-    for i = 1:numel(contrasts)
-        D = dpxdSubset(A,A.contrast==contrasts(i));
+    % Iterate over the different ctrlVars
+    lineHandles = nan(size(ctrlVars));
+    lineLabels = cell(size(ctrlVars));
+    for i = 1:numel(ctrlVars)
+        D = dpxdSubset(A,A.ctrlVar==ctrlVars(i));
         D = poolPositiveAndNegativeSpeed(D);
         
         yaw = nan(size(speeds)); % the y-axis values of this curve
@@ -668,23 +671,23 @@ function [out]=plotSpeedYawCurves(A,option)
             yawSem(vi) = mean(V.yawSEM{1}(idx));
         end
         
-        colmap = flipud(colormap('parula')); % flip so that highest contrast has highest contrast color (black)
+        colmap = flipud(colormap('parula')); % flip so that highest ctrlVar has highest ctrlVar color (black)
         % select the color for this line from the colmap
-        colidx = round(size(colmap,1)*(0.2+0.8*contrasts(i))); % use only 80% of colmap (white/yellow is too bright)
+        colidx = round(size(colmap,1)*(0.2+0.8*ctrlVars(i))); % use only 80% of colmap (white/yellow is too bright)
         colidx = max(colidx,1); % prevent 0-index
         col = colmap(colidx,:); % the line color
-        wid = 0.5 + contrasts(i)*2;
+        wid = 0.5 + ctrlVars(i)*2;
         markers = 'osdv^<>ph';
         mark = markers(i);
         %lineHandles(i) = dpxPlotBounded('x',speeds,'y',yaw,'eu',yawSem,'ed',yawSem,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',.1);
         lineHandles(i) = errorbar(speeds,yaw,yawSem,'-','Color',col,'LineWidth',wid,'Marker',mark,'MarkerSize',15,'MarkerEdgeColor','none','MarkerFaceColor',col);
         hold on;
-        lineLabels{i} = num2str(contrasts(i));
+        lineLabels{i} = num2str(ctrlVars(i));
         %
-        % Store xy and contrast for output for later analysis
+        % Store xy and ctrlVar for output for later analysis
         out.speeds=[out.speeds speeds];
         out.yaw=[out.yaw yaw];
-        out.contrast=[out.contrast repmat(contrasts(i),size(yaw))];
+        out.ctrlVar=[out.ctrlVar repmat(ctrlVars(i),size(yaw))];
         out.mouse=[out.mouse repmat(A.mus(1),size(yaw))];
         out.N=out.N+numel(yaw);
         if ~dpxdIs(out), error('not a dpxd!!'); end
@@ -707,8 +710,8 @@ function A=prepForAnova(A)
     A=rmfield(A,{'yawRaw','yawSEM','yawN','yawMean'});
 	% remove the mean mouse
     A=dpxdSubset(A,~strcmpi(A.mus,'MEAN'));
-    % remove the pooled contrasts
-    A=dpxdSubset(A,A.contrast~=-1);
+    % remove the pooled ctrlVars
+    A=dpxdSubset(A,A.ctrlVar~=-1);
     % get raw-yaw integrals over 1 and 2 seconds since stim-on
     for i=1:A.N
         A.yawIntegral{i}=nan(size(A.yaw{i}));

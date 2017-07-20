@@ -11,10 +11,10 @@ function jdDpxExpHalfDomeRdkAnalysisSpeedEarlyLate
     end
     
     
-    out.withinEarly=jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinEarly');
-    out.withinLate=jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinLate');
-    out.betweenEarly=jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenEarly');
-    out.betweenLate=jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenLate');
+    out.withinEarly = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinEarly');
+    out.withinLate = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'withinLate');
+    out.betweenEarly = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenEarly');
+    out.betweenLate = jdDpxExpHalfDomeRdkAnalysisSpeed(files,'betweenLate');
     
     cpsTileFigs
     
