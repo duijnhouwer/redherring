@@ -275,7 +275,7 @@ function plotTraces(C,str)
     nMice=numel(C);
     for i=1:nMice
         [~,order]=sort(abs(C{i}.speed));
-        subplot(ceil(nMice/3),3,i)
+        subplot(ceil(nMice/3),3,i,'align')
         tel=0;
         for v=order(:)'
             tel=tel+1;

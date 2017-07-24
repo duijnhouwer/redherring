@@ -270,7 +270,7 @@ function plotTraces(C,str)
     nMice=numel(C);
     for i=1:nMice
         [~,order]=sort(abs(C{i}.speed));
-        subplot(ceil(nMice/3),3,i)
+        subplot(ceil(nMice/3),3,i,'align')
         tel=0;
         for v=order(:)'
             tel=tel+1;
@@ -388,7 +388,7 @@ end
 function plotAllYawToCheckClipping(C,titleString)
     dpxFindFig(['YawBreaker' titleString]);
     for i=1:numel(C)
-        subplot(ceil(numel(C)/5),5,i);
+        subplot(ceil(numel(C)/5),5,i,'align');
         for s=1:numel(C{i}.yawRaw)
             for t=1:numel(C{i}.yawRaw{s})
                 plot(C{i}.yawRaw{s}{t}(1:2:end),'Color',[0 0 0 .01]);

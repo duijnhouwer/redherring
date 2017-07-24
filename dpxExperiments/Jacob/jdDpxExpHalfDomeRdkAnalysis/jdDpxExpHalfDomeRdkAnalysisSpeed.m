@@ -420,7 +420,7 @@ end
 function plotAllYawToCheckClipping(C,titleString)
     cpsFindFig(['YawBreaker' titleString]);
     for i=1:numel(C)
-        subplot(ceil(numel(C)/5),5,i);
+        subplot(ceil(numel(C)/5),5,i,'align');
         for s=1:numel(C{i}.yawRaw)
             for t=1:numel(C{i}.yawRaw{s})
                 plot(C{i}.yawRaw{s}{t}(1:2:end),'Color',[0 0 1]);
@@ -523,7 +523,7 @@ function plotTimeYawCurves(A,fieldName,option)
     for i = 1:numel(values)
         D = dpxdSubset(A,A.ctrlVar==values(i));
         D = poolPositiveAndNegativeSpeed(D);
-        subplot(nRows,nCols,i);
+        subplot(nRows,nCols,i,'align');
         [lineHandles,boundHandles] = deal(nan(size(D.speed)));
         lineLabels = cell(size(D.speed));
         for vi = 1:numel(D.speed)
@@ -637,7 +637,7 @@ function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw)
     figtit=[figtit ' - ' gainOrYaw];
     figHandle=cpsFindFig(figtit);
     clf; % clear the figures
-    subplot(1,2,1);
+    subplot(1,2,1,'align');
     
     % Remove the -1 ctrlVar data that contains the yaw pooled over all
     % ctrlVars (not split out according to ctrlVar)
@@ -714,7 +714,7 @@ end
 
 function plotCtrlVarYawCurves(figtit,curves,option,ctrlVar)
     figHandle=cpsFindFig(figtit);
-    subplot(1,2,2);
+    subplot(1,2,2,'align');
     uCtrlVars=unique(curves.ctrlVar);
     uSpeeds=unique(curves.speeds);
     uSpeedsNorm=uSpeeds-min(uSpeeds);
