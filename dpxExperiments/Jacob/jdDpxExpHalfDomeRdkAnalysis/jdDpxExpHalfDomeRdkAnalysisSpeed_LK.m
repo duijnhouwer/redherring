@@ -1,4 +1,4 @@
-function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
+function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK(files,option,gainOrYaw,phiOrIhp)
     
     % Analyze halfdome mouse on ball data
     % see also:
@@ -8,6 +8,11 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
     
     if ~any(strcmpi(gainOrYaw,{'gain','yaw'}))
         error('gainOrYaw must be ''gain'' or ''yaw''');
+    end
+    
+    
+    if ~any(strcmpi(phiOrIhp,{'phi','ihp'}))
+        error('phiOrIhp must be ''phi'' or ''ihp''');
     end
     
     global intWinSec
@@ -98,27 +103,37 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
     if E.N==0
         keyboard
     end
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   %LK 2017-08
- % ReversePhi experiment or not
-%  nFreezeFlips=numel(unique(E.rdk_freezeFlip));
-%  if nFreezeFlips>1
-%      Exptype='ReversePhi';
-%      ctrlVAr='freezeflip';
-%      A=splitByFreezeFlips(E);
-%  end
-%      %  infinite lifetime control
-%      analyze(dpxdSubset(E,E.rdk_nSteps==Inf),'; Unlimited lifetime');
-%      % PHI and IHP
-%      PHI=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==Inf); % & E.rdk_freezeFlip==5
-%      analyze(PHI,'; Phi (Flip all)');
-%      IHP=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==1); % & E.rdk_freezeFlip==5
-%      analyze(IHP,'; Reverse-phi (Flip all)');
-%      cpsTileFigs;
-%      
-%      keyboard
-%      return;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
-  nFreezeFlips=numel(unique(E.rdk_freezeFlip));
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   %LK 2017-08
+    % ReversePhi experiment or not
+    %  nFreezeFlips=numel(unique(E.rdk_freezeFlip));
+    %  if nFreezeFlips>1
+    %      Exptype='ReversePhi';
+    %      ctrlVAr='freezeflip';
+    %      A=splitByFreezeFlips(E);
+    %  end
+    %      %  infinite lifetime control
+    %      analyze(dpxdSubset(E,E.rdk_nSteps==Inf),'; Unlimited lifetime');
+    %      % PHI and IHP
+    %      PHI=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==Inf); % & E.rdk_freezeFlip==5
+    %      analyze(PHI,'; Phi (Flip all)');
+    %      IHP=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==1); % & E.rdk_freezeFlip==5
+    %      analyze(IHP,'; Reverse-phi (Flip all)');
+    %      cpsTileFigs;
+    %
+    %      keyboard
+    %      return;
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    if strcmpi(phiOrIhp,'phi')
+        E=dpxdSubset(E,(E.rdk_nSteps==1 & E.rdk_invertSteps==Inf) | E.rdk_nSteps==Inf);
+    elseif strcmpi(phiOrIhp,'ihp')
+        E=dpxdSubset(E,(E.rdk_nSteps==1 & E.rdk_invertSteps==1) | E.rdk_nSteps==Inf);
+    else
+        error('unknown phiOrIhp: %s',phiOrIhp)
+    end
+    
+    
+    nFreezeFlips=numel(unique(E.rdk_freezeFlip));
     nDotsizes=numel(unique(E.rdk_dotDiamPx));
     lums=nan(1,E.N);
     for i=1:E.N
@@ -135,6 +150,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
         ctrlVar='freezeflip';
         A=splitByFreezeFlips(E);
     else
+        
         error('both dotdiam and contrast vary, select other files');
     end
     
@@ -146,7 +162,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
     for i=1:numel(miceNames)
         M = dpxdSubset(A,strcmpi(A.mus,miceNames{i}));
         plotTimeYawCurves(M,ctrlVar,option);
-        [curves{end+1},figtit]=plotSpeedYawCurves(M,option,ctrlVar,gainOrYaw);  %#ok<AGROW>
+        [curves{end+1},figtit]=plotSpeedYawCurves(M,option,ctrlVar,gainOrYaw,phiOrIhp);  %#ok<AGROW>
         plotCtrlVarYawCurves(figtit,curves{end},option,ctrlVar);
     end
     % Output for further analysis
@@ -540,9 +556,14 @@ function plotTimeYawCurves(A,fieldName,option)
     % How many subplot will we need?
     nSubPlots = numel(values);
     % Decide on the number of colums and rows for the subplot
-    nCols = ceil(sqrt(nSubPlots));
-    nRows = floor(sqrt(nSubPlots));
-    % Iterate over the different values of fieldname
+    if nSubPlots==3
+        nCols=3;
+        nRows=1;
+    else
+        nCols = ceil(sqrt(nSubPlots));
+        nRows = floor(sqrt(nSubPlots));
+    end
+    % Iterate over the different values of controlled variable
     for i = 1:numel(values)
         D = dpxdSubset(A,A.ctrlVar==values(i));
         D = poolPositiveAndNegativeSpeed(D);
@@ -632,7 +653,7 @@ end
 
 
 
-function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw)
+function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw,phiOrIhp)
     % Plot the Yaw as a function of stimulus speed. Data is split in lines
     % with different colors according to stimulus contrast
     out.speeds=[];
@@ -657,7 +678,7 @@ function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw)
             figtit=[figtit ' - ' option];
         end
     end
-    figtit=[figtit ' - ' gainOrYaw];
+    figtit=[figtit ' - ' gainOrYaw ',' phiOrIhp];
     figHandle=cpsFindFig(figtit);
     clf; % clear the figures
     subplot(1,2,1,'align');
@@ -827,21 +848,49 @@ function A=splitByDotDiam(E)
 end
 
 function A=splitByFreezeFlips(E)                    %LK 2017-08
-%freezeflips are delays of frames before going to the next 
-
-freezeflipUsed=unique(E.rdk_freezeFlip);
-freezeflipUsed=[freezeflipUsed -1]; % add -1 to analyze the pooled data also
-%
-% Run the analyze function for each freezeflip separately. collect
-% in a cell array called A (for Analysis)
-  A = {}; % start empty
+    %freezeflips are delays of frames before going to the next
+    
+    freezeflipUsed=unique(E.rdk_freezeFlip);
+    freezeflipUsed=[freezeflipUsed -1]; % add -1 to analyze the pooled data also
+    
+    % There was a problem. The speed zero stimuli were only programmed for
+    % unlimited lifetime motion. This was a mistake as we are interested
+    % in the responses were to zero-speed motion that was flickering too.
+    % We will have to use the zero-speed unlimited motion conditions as a
+    % proxy for all zero-speed responses. WE can check the validity of
+    % thisassupmption by comparin gthe responses to the 1 to 2 seconds
+    % zero-speed motion that preceeds each trail, ie., see if the responses
+    % are different in those (for example, on may predict more variance in
+    % the response to the zero-speed stim with limited lifetime (more
+    % flicker))
+    %
+    % Assuming for now that this is valid, I will know copy the trials with
+    % zero-speed and unlimited lifetime into the data table, and "pretend"
+    % they were recorded with limited life so that they can serve as
+    % baseline for the limited lifetime conditions.
+    
+    warning('check required, flicker vs no-flicker zero-speed response');
+    STATIONARY=dpxdSubset(E,E.rdk_aziDps==0);
+    if numel(unique(STATIONARY.rdk_freezeFlip))>1
+        error('we assumed only one freezeflip was used for the zero-speed stim');
+    end
+    for i=1:numel(freezeflipUsed)
+        if freezeflipUsed(i)==1 || freezeflipUsed(i)<0
+            continue;
+        end
+        STATIONARY.rdk_freezeFlip=ones(size(STATIONARY.rdk_freezeFlip))*freezeflipUsed(i);
+        E=dpxdMerge([E STATIONARY]);
+    end  
+    %
+    % Run the analyze function for each freezeflip separately. collect
+    % in a cell array called A (for Analysis)
+    A = {}; % start empty
     for i=1:numel(freezeflipUsed)
         if freezeflipUsed(i)==-1
             tmpA = analyzeAcrossMiceAndSpeeds(E); % all flips
         else
             tmpA = analyzeAcrossMiceAndSpeeds(dpxdSubset(E,E.rdk_freezeFlip==freezeflipUsed(i)));
         end
-        % Add a luminance field to all the mouse data
         for mi = 1:numel(tmpA) % mi for mouse index
             tmpA{mi}.ctrlVar = ones(1,tmpA{mi}.N) * freezeflipUsed(i);
         end

@@ -28,8 +28,8 @@ function jdDpxExpHalfDomeRdkRevPhi(debug)
     lum=.15;
     degPerSec=18;
     for startSec=[1 2]
-        for freezeFlip=[-7:7 -0.1 0.1];
-            for invertSteps=[Inf 1] % phi, reverse phi
+        for freezeFlip=0 %[-7:7 -0.1 0.1]
+            for invertSteps=1 %[Inf 1] % phi, reverse phi
                 
                 C=dpxCoreCondition;
                 C.durSec=startSec+motSec+2;
