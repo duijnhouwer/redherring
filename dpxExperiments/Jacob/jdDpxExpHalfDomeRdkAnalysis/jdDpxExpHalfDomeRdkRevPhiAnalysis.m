@@ -26,11 +26,11 @@ function files=jdDpxExpHalfDomeRdkRevPhiAnalysis(files)
     % infinite lifetime control
     analyze(dpxdSubset(E,E.rdk_nSteps==Inf),'; Unlimited lifetime');
     % PHI and IHP
-    PHI=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==Inf);
-    analyze(PHI,'; Phi (all delays)');
-    IHP=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==1);
-    analyze(IHP,'; Reverse-phi (all delays)');
-    dpxTileFigs;
+    PHI=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==Inf); % & E.rdk_freezeFlip==5
+    analyze(PHI,'; Phi (Flip all)');
+    IHP=dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==1); % & E.rdk_freezeFlip==5
+    analyze(IHP,'; Reverse-phi (Flip all)');
+    cpsTileFigs;
     
     keyboard
     return;
@@ -61,7 +61,7 @@ function analyze(E,titleString)
         C{i}=getSpeedCurves(E{i});
     end
     % Make a plot of the raw yaw traces, to visual inspect for clipping
-    plotAllYawToCheckClipping(C,titleString);
+%    plotAllYawToCheckClipping(C,titleString);
     % calculate mean traces per mouse (pooled over sessions)
     C=getMeanYawTracesPerMouse(C);
     % add a virtual mouse that is the mean of all mean-others
@@ -71,7 +71,7 @@ function analyze(E,titleString)
     % plot the curves, panel per mouse
     plotTraces(C,titleString);
     % plot the drifts relative to stat
-    plotDriftScatter(C,titleString);
+%     plotDriftScatter(C,titleString);
 end
 
 function C=getSpeedCurves(D)
@@ -266,7 +266,7 @@ end
 function plotTraces(C,str)
     % Plot the traces per speed, with colored areas to highlight the difference
     % between left, static, and rightward stimulation
-    dpxFindFig(['TheWayOfTheMouse ' str]);
+    cpsFindFig(['TheWayOfTheMouse ' str]);
     nMice=numel(C);
     for i=1:nMice
         [~,order]=sort(abs(C{i}.speed));
@@ -317,9 +317,9 @@ function plotTraces(C,str)
         end
         %
         axis tight
-        dpxText(C{i}.mus{1});
-        dpxPlotHori(0,'k--');
-        dpxPlotVert(0,'k--');
+%         dpxText(C{i}.mus{1});
+%         dpxPlotHori(0,'k--');
+%         dpxPlotVert(0,'k--');
         xlabel('Time since motion onset (s)');
         ylabel('Yaw (a.u.)');
         %
@@ -371,35 +371,35 @@ function C=getOffsetPerSecond(C)
     end
 end
 
-function plotDriftScatter(C,titleString)
-    dpxFindFig(['DriftScatter' titleString]);
-    x=[];
-    y=[];
-    for i=1:numel(C)-1 % don't include the pooled mouse
-        x(i)=C{i}.leftDriftPerSecond;
-        y(i)=C{i}.rightDriftPerSecond;
-    end
-    dpxScatStat(x,y,'test','ttest');
-    xlabel('Speed during left - speed during static (a.u/second)');
-    ylabel('Speed during right - speed during static (a.u/second)');
-end
+% function plotDriftScatter(C,titleString)
+%     cpsFindFig(['DriftScatter' titleString]);
+%     x=[];
+%     y=[];
+%     for i=1:numel(C)-1 % don't include the pooled mouse
+%         x(i)=C{i}.leftDriftPerSecond;
+%         y(i)=C{i}.rightDriftPerSecond;
+%     end
+%     dpxScatStat(x,y,'test','ttest');
+%     xlabel('Speed during left - speed during static (a.u/second)');
+%     ylabel('Speed during right - speed during static (a.u/second)');
+% end
 
 
-function plotAllYawToCheckClipping(C,titleString)
-    dpxFindFig(['YawBreaker' titleString]);
-    for i=1:numel(C)
-        subplot(ceil(numel(C)/5),5,i,'align');
-        for s=1:numel(C{i}.yawRaw)
-            for t=1:numel(C{i}.yawRaw{s})
-                plot(C{i}.yawRaw{s}{t}(1:2:end),'Color',[0 0 0 .01]);
-                hold on;
-            end
-        end
-        dpxYaxis(-1080/2,1080/2);
-        dpxPlotHori(500,'r-');
-        dpxPlotHori(-500,'r-');
-    end
-end
+% function plotAllYawToCheckClipping(C,titleString)
+%     cpsFindFig(['YawBreaker' titleString]);
+%     for i=1:numel(C)
+%         subplot(ceil(numel(C)/5),5,i,'align');
+%         for s=1:numel(C{i}.yawRaw)
+%             for t=1:numel(C{i}.yawRaw{s})
+%                 plot(C{i}.yawRaw{s}{t}(1:2:end),'Color',[0 0 0 .01]);
+%                 hold on;
+%             end
+%         end
+%         dpxYaxis(-1080/2,1080/2);
+%         dpxPlotHori(500,'r-');
+%         dpxPlotHori(-500,'r-');
+%     end
+% end
 
 
 

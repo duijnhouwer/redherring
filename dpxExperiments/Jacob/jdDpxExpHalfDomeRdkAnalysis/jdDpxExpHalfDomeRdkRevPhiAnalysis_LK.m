@@ -7,7 +7,7 @@ function files=jdDpxExpHalfDomeRdkRevPhiAnalysis_LK(files)
     end
     E={};
     for i=1:numel(files)
-        D=dpxdLoad(files{i},'verbose');
+        D=dpxdLoad(files{i});
         [D,str,suspect,maxCorr]=clarifyAndCheck(D);
         if ~suspect
             % Only include data files that are completely fine and have no suspicious

@@ -24,7 +24,7 @@ end
 % Merge all datafiles that we collected in cell array
 E=dpxdMerge(E); % E is now a DPXD
 
-flip=5;
+flip=[1];
 PHI  = dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==Inf);
 Cphi = analyze(PHI,['; Phi, flip: ' num2str(flip)]);
 IHP  = dpxdSubset(E,E.rdk_nSteps==1 & E.rdk_invertSteps==1);
