@@ -136,6 +136,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK(files,option,gainOrYaw,phiOrIhp
     nFreezeFlips=numel(unique(E.rdk_freezeFlip));
     nDotsizes=numel(unique(E.rdk_dotDiamPx));
     lums=nan(1,E.N);
+    %here transparancy conditions invullen 
     for i=1:E.N
         lums(i)=E.mask_RGBAfrac{i}(1);
     end
@@ -149,6 +150,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK(files,option,gainOrYaw,phiOrIhp
     elseif nDotsizes==1 && nContrasts==1 && nFreezeFlips>1 %LK 2017-08
         ctrlVar='freezeflip';
         A=splitByFreezeFlips(E);
+    %elseif voor de transparancy
     else
         
         error('both dotdiam and contrast vary, select other files');
@@ -477,7 +479,7 @@ function M = poolPositiveAndNegativeSpeed(M)
     % suffice to simply flip the sign of one of them. That is because the
     % zero stimulus rotation condition often has a non-zero yaw. That is,
     % there is a bias. Therefore, first subtract the bias of all the yaw
-    % traces, the merge the + and - speed, and then calculate the mean, the
+    % traces, then merge the + and - speed, and then calculate the mean, the
     % SEM, and the N again. Do this on the yaw traces, not the yawRaw
     % traces, because they don't have the pre-stim bias subtracted yet
     Z=dpxdSubset(M,M.speed==0);
@@ -559,6 +561,9 @@ function plotTimeYawCurves(A,fieldName,option)
     if nSubPlots==3
         nCols=3;
         nRows=1;
+    elseif nSubPlots==8
+        nCols=4;
+        nRows=2;
     else
         nCols = ceil(sqrt(nSubPlots));
         nRows = floor(sqrt(nSubPlots));
@@ -566,7 +571,7 @@ function plotTimeYawCurves(A,fieldName,option)
     % Iterate over the different values of controlled variable
     for i = 1:numel(values)
         D = dpxdSubset(A,A.ctrlVar==values(i));
-        D = poolPositiveAndNegativeSpeed(D);
+%         D = poolPositiveAndNegativeSpeed(D);
         subplot(nRows,nCols,i,'align');
         [lineHandles,boundHandles] = deal(nan(size(D.speed)));
         lineLabels = cell(size(D.speed));
@@ -703,7 +708,7 @@ function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw,phiOrIhp)
     lineLabels = cell(size(ctrlVars));
     for i = 1:numel(ctrlVars)
         D = dpxdSubset(A,A.ctrlVar==ctrlVars(i));
-        D = poolPositiveAndNegativeSpeed(D);
+%         D = poolPositiveAndNegativeSpeed(D);
         
         yaw = nan(size(speeds)); % the y-axis values of this curve
         yawSem = yaw;
@@ -725,7 +730,7 @@ function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw,phiOrIhp)
         colidx = round(size(colmap,1)*(0.2+0.8*ctrlVarsNorm(i))); % use only 80% of colmap (white/yellow is too bright)
         colidx = max(colidx,1); % prevent 0-index
         col = colmap(colidx,:); % the line color
-        wid = 0.5 + ctrlVarsNorm(i)*2;
+        wid = 0.5 + ctrlVarsNorm(i)*2; %
         markers = 'osdv^<>ph';
         mark = markers(i);
         %lineHandles(i) = dpxPlotBounded('x',speeds,'y',yaw,'eu',yawSem,'ed',yawSem,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',.1);
@@ -774,7 +779,7 @@ function plotCtrlVarYawCurves(figtit,curves,option,ctrlVar)
         markers = 'osdv^<>ph';
         mark = markers(i);
         %lineHandles(i) = dpxPlotBounded('x',speeds,'y',yaw,'eu',yawSem,'ed',yawSem,'LineColor',col,'FaceColor',col,'LineWidth',wid,'FaceAlpha',.1);
-        lineHandles(i) = errorbar(curves{i}.ctrlVar,curves{i}.yaw,curves{i}.yawSem,'-','Color',col,'LineWidth',wid,'Marker',mark,'MarkerSize',15,'MarkerEdgeColor','none','MarkerFaceColor',col);
+        lineHandles(i) = errorbar(curves{i}.ctrlVar,curves{i}.yaw,curves{i}.yawSem,'-','Color',col,'LineWidth',2,'Marker',mark,'MarkerSize',15,'MarkerEdgeColor','none','MarkerFaceColor',col); %Linewidth was wid, changed it to 2 %LK2017-08
         hold on;
         lineLabels{i} = num2str(curves{i}.speeds(1));
     end
@@ -898,5 +903,5 @@ function A=splitByFreezeFlips(E)                    %LK 2017-08
     end
 end
 
-
+%function A=splitByFreezeFlips(E)   voor transparancy
 
