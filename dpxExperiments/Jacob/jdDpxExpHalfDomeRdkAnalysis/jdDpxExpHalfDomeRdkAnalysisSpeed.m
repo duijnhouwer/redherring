@@ -10,8 +10,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
         error('gainOrYaw must be ''gain'' or ''yaw''');
     end
     
-    global intWinSec
-    intWinSec=[1 2]; % time window over which mean yaw is taken
+   
     
     if ~exist('files','var') || isempty(files)
         files=dpxUIgetFiles;
@@ -114,6 +113,9 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
     else
         error('both dotdiam and contrast vary, select other files');
     end
+    if ~isvarname(ctrlVar)
+        error('''%s'' is not a valid variable name so can''t be used as ctrlVar');
+    end
     
     A = dpxdMerge(A); % combine into one DPXD again
     %
@@ -126,10 +128,24 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed(files,option,gainOrYaw)
         [curves{end+1},figtit]=plotSpeedYawCurves(M,option,ctrlVar,gainOrYaw);  %#ok<AGROW>
         plotCtrlVarYawCurves(figtit,curves{end},option,ctrlVar);
     end
+    %
     % Output for further analysis
     out.curves=dpxdMerge(curves);
+    %   for clarity, replace generic 'ctrlVar' field with the name, e.g. dotdiam
+    out.curves.(ctrlVar)=out.curves.ctrlVar;
+    out.curves=rmfield(out.curves,'ctrlVar');
+    %   also the yaw field with wether yaw or gain was used
+    if strcmpi(gainOrYaw,'gain')
+        out.curves.gain=out.curves.yaw;
+        out.curves=rmfield(out.curves,'yaw');
+    end
 end
 
+
+function  w=intWinSec()
+    % time window in seconds over which mean yaw is calculated
+    w=[1 2];
+end
 
 function C = analyzeAcrossMiceAndSpeeds(E)
     % This function return a cell for each mouse with the yaw-traces (raw
@@ -494,7 +510,6 @@ function plotTimeYawCurves(A,fieldName,option)
     % different speeds. Data is split out in panels according to fieldName,
     % which could be, for example, 'contrast'
     narginchk(3,3);
-    global intWinSec;
     if ~dpxdIs(A)
         error('First argument should be a DPXD');
     end
@@ -515,9 +530,9 @@ function plotTimeYawCurves(A,fieldName,option)
     % Get a list of the unique values of fieldName
     values = unique(A.ctrlVar);
     % How many subplot will we need?
-    nSubPlots = numel(values);
+    nSubPlots = numel(values); 
     % Decide on the number of colums and rows for the subplot
-    nCols = ceil(sqrt(nSubPlots));
+    nCols =  ceil(sqrt(nSubPlots));
     nRows = floor(sqrt(nSubPlots));
     % Iterate over the different values of fieldname
     for i = 1:numel(values)
@@ -567,8 +582,8 @@ function plotTimeYawCurves(A,fieldName,option)
             hold on;
             % ugly-print the number of mice that this line is the mean from
             % and the number of repeats that went into each mouse's line
-            infoStr=[num2str(V.yawN{1}(1)) ' (' num2str(V.yawN{1}(2:end)') ')'];
-            text(t(numel(y)),y(end),infoStr,'Color',col);
+          %  infoStr=[num2str(V.yawN{1}(1)) ' (' num2str(V.yawN{1}(2:end)') ')'];
+          %  text(t(numel(y)),y(end),infoStr,'Color',col);
             lineHandles(vi) = hl;
             boundHandles(vi) = hb;
             if thisSpeed>0
@@ -618,7 +633,6 @@ function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw)
     out.ctrlVar=[];
     out.mouse={};
     out.N=0;
-    global intWinSec
     if ~dpxdIs(A)
         error('First argument should be a DPXD');
     end
@@ -661,7 +675,7 @@ function [out,figtit]=plotSpeedYawCurves(A,option,ctrlVar,gainOrYaw)
         D = dpxdSubset(A,A.ctrlVar==ctrlVars(i));
         D = poolPositiveAndNegativeSpeed(D);
         
-        yaw = nan(size(speeds)); % the y-axis values of this curve
+        yaw = nan(size(speeds));
         yawSem = yaw;
         for vi = 1:numel(speeds)
             thisSpeed = speeds(vi);
