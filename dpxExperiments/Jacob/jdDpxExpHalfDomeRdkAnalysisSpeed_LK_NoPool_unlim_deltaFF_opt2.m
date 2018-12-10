@@ -1,4 +1,4 @@
-function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK(files,option,gainOrYaw,phiOrIhp)
+function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK_NoPool_unlim_deltaFF_opt2(files,option,gainOrYaw,phiOrIhp)
     
     % Analyze halfdome mouse on ball data
     % see also:
@@ -54,10 +54,10 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK(files,option,gainOrYaw,phiOrIhp
             end
             D=dpxdSubset(D,t>=min(timeWinSec) & t<max(timeWinSec));
         end
-        maxFrDropsPerSec=3;
+        maxFrDropsPerSec=5;
         [D,percentBadTrials] = removeTrialWithTooManyFramedrops(D,maxFrDropsPerSec/D.window_measuredFrameRate(1)*100);
         disp(['File #' num2str(i,'%.3d') ': ' num2str(round(percentBadTrials)) '% of trials had more than ' num2str(maxFrDropsPerSec) ' video-frame drops per second']);
-        if percentBadTrials>95
+        if percentBadTrials>50
             fprintf(' ---> skipping file : %s\n', files{i} );
             continue
         end
@@ -247,7 +247,7 @@ function C=getSpeedCurves(D)
             % This seems to not work properly, there can be huge
             idx=S.resp_mouseBack_tSec{tt}>=from & S.resp_mouseBack_tSec{tt}<till;
             idx=idx(:)'; % make sure is row
-            % Take the mean yaw from both computer mouse reading the ball
+            % Take the mean yaw from both computer mice reading the ball
             yaw{tt}=mean([S.resp_mouseSideYaw{tt}(idx);S.resp_mouseBackYaw{tt}(idx)],1);
             time=S.resp_mouseBack_tSec{tt}(idx);
             yaw{tt} = interp1(time,yaw{tt},interval+S.rdk_motStartSec(tt),'linear','extrap');
@@ -274,7 +274,6 @@ function [D,percentTrials] = removeTrialWithTooManyFramedrops(D,thresholdPercent
 end
 
 function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
-    suspect=false;
     % Make some changes to the DPXD that make the analysis easier to read;
     % Step 1, align time of traces to the start of trial
     for t=1:D.N
@@ -289,15 +288,7 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseBack_dxPx{t}=D.resp_mouseBack_dxPx{t}+1920;
         D.resp_mouseSide_dxPx{t}=D.resp_mouseSide_dxPx{t}+1920;
     end
-    % Step 3, smooth the data N*16.6667 ms running average (3 60-Hz samples is 50 ms)
-    SMOOTHFAC=6;
-    for t=1:D.N
-        D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC)';
-        D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC)';
-        D.resp_mouseSide_dxPx{t}=smooth(D.resp_mouseSide_dxPx{t},SMOOTHFAC)';
-        D.resp_mouseSide_dyPx{t}=smooth(D.resp_mouseSide_dyPx{t},SMOOTHFAC)';
-    end
-    % Step 4, rename the mouse fields that code yaw (these should not
+    % Step 3, rename the mouse fields that code yaw (these should not
     % change from session to session but to be extra cautious we're gonna
     % assume nothing and figure out on a per file basis. Yaw is shared by
     % the back and the side Logitech, determine what combination
@@ -326,40 +317,54 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseSideYaw=[];
         return;
     end
-%     if corr(BdX(:),SdX(:))>maxCorr
-%         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
-%         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
-%         str='yaw are BdX and SdX - OPTION 1';
-%         maxCorr=corr(BdX(:),SdX(:));
-%     end
-%     if corr(BdY(:),SdY(:))>maxCorr
-        D.resp_mouseBackYaw=D.resp_mouseBack_dyPx;
-        D.resp_mouseSideYaw=D.resp_mouseSide_dyPx;
-        str='yaw are BdY and SdY - OPTION 22';
-        maxCorr=corr(BdY(:),SdY(:));
-%     end
-%     if corr(BdX(:),SdY(:))>maxCorr
-%         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
-%         D.resp_mouseSideYaw=D.resp_mouseSide_dyPx;
-%         str='yaw are BdX and SdY - OPTION 333';
-%         maxCorr=corr(BdY(:),SdY(:));
-%     end
-%     if corr(BdY(:),SdX(:))>maxCorr
-%         D.resp_mouseBackYaw=D.resp_mouseBack_dyPx;
-%         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
-%         str='yaw are BdY and SdX - OPTION 4444';
-%         maxCorr=corr(BdY(:),SdY(:));
-%     end
-    if maxCorr<0.8
-        suspect=true;
-        %   keyboard
-    end
+     if false && corr(BdX(:),SdX(:))>maxCorr % FALSE
+         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
+         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
+         str='yaw are BdX and SdX - OPTION 1';
+         maxCorr=corr(BdX(:),SdX(:));
+     end
+     if corr(BdY(:),SdY(:))>maxCorr
+       D.resp_mouseBackYaw=D.resp_mouseBack_dyPx;
+       D.resp_mouseSideYaw=D.resp_mouseSide_dyPx;
+       str='yaw are BdY and SdY - OPTION 22';
+       maxCorr=corr(BdY(:),SdY(:));
+     end
+     if false && corr(BdX(:),SdY(:))>maxCorr % FALSE
+         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
+         D.resp_mouseSideYaw=D.resp_mouseSide_dyPx;
+        str='yaw are BdX and SdY - OPTION 333';
+         maxCorr=corr(BdY(:),SdY(:));
+     end
+     if false && corr(BdY(:),SdX(:))>maxCorr % FALSE
+         D.resp_mouseBackYaw=D.resp_mouseBack_dyPx;
+         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
+         str='yaw are BdY and SdX - OPTION 4444';
+         maxCorr=corr(BdY(:),SdY(:));
+     end
+     % Step 4, smooth the data N*16.6667 ms running average (3 60-Hz samples is 50 ms) 
+     SMOOTHFAC=19;
+     if SMOOTHFAC>0
+         for t=1:D.N
+             %   D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC,'sgolay')';
+             %   D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC,'sgolay')';
+             %   D.resp_mouseSide_dxPx{t}=smooth(D.resp_mouseSide_dxPx{t},SMOOTHFAC,'sgolay')';
+             %   D.resp_mouseSide_dyPx{t}=smooth(D.resp_mouseSide_dyPx{t},SMOOTHFAC,'sgolay')';
+             
+             D.resp_mouseBackYaw{t}=smooth(D.resp_mouseBackYaw{t},SMOOTHFAC)';
+             D.resp_mouseSideYaw{t}=smooth(D.resp_mouseSideYaw{t},SMOOTHFAC)';
+         end
+     end
+    
     % Step 5: Convert yaw pixels/frame to deg/s (added 20170710)
     scalar = jdDpxExpHalfDomeAuToDps;
     for i=1:numel(D.resp_mouseBackYaw)
         D.resp_mouseBackYaw{i}=D.resp_mouseBackYaw{i}*scalar;
         D.resp_mouseSideYaw{i}=D.resp_mouseSideYaw{i}*scalar;
     end
+    
+    % See if the file is up to snuff
+    suspect = ~contains(str,'OPTION 2') || maxCorr<0.8;
+         
 end
 
 
@@ -376,16 +381,26 @@ function C=getMeanYawTracesPerMouse(C)
             for tr=1:numel(C{i}.yaw{v})
                 len(end+1)=numel(C{i}.yaw{v}{tr});
             end
-            ok=find(len==median(len));
-            if isempty(ok)
+            oklen=find(len==mode(len));
+            if isempty(oklen)
                 error('no trial with correct length');
             end
-            if jdProp(len==median(len))<0.9
+            fprintf('ok%% = %f\n',numel(oklen)/numel(len));
+            if numel(oklen)/numel(len)<0.95
                 error('lots of possibly salvageable data is being left out [w20170605]');
             end
             % [mn,n,sd]=dpxMeanUnequalLengthVectors(C{i}.preStimYaw{v},'align','end');
-            for tr=1:numel(ok)
-                Y(tr,:)=dpxMakeRow( C{i}.yaw{v}{ok(tr)} );
+            
+            % before 2018-12-10, Y was not instantiated or reset, this
+            % meant that if a speed or mouse had more trials than the
+            % subsequent steps in the loop, the higher trials would remain
+            % in Y and carry over to the next speeds and or mice!
+            %
+            % Using Y=[] would do the trick too, but might as well preallocate for
+            % efficiency because rows and column numbers are known
+            Y=nan(numel(oklen),numel(C{i}.yaw{v}{oklen(1)})); 
+            for tr=1:numel(oklen)
+                Y(tr,:)=dpxMakeRow( C{i}.yaw{v}{oklen(tr)} );
             end
             C{i}.yawMean{v}=mean(Y,1);
             C{i}.yawSEM{v}=std(Y,1)/sqrt(size(Y,1));
@@ -414,12 +429,12 @@ function C=addMeanMouse(C,minRepeats)
             if C{i}.yawN{v}>=minRepeats
                 C{end}.yaw{v}{i}=C{i}.yawMean{v};
                 C{end}.yawN{v}(1)=C{end}.yawN{v}(1)+1;
-                C{end}.yawN{v}(end+1,1)=C{i}.yawN{v};
+                C{end}.yawN{v}(end+1,1)=C{i}.yawN{v}; % in the end, yawN will be a list with yawN(1) the number of mice that went into it, and yaw(2:end) the number of trials of each of those mice
             else
                 C{end}.yawRaw{v}{i}=nan(size(C{i}.yawMean{v}));
             end
         end
-        [avg,num,sd]=dpxMeanUnequalLengthVectors(C{end}.yaw{v}); % ignorse nan values
+        [avg,num,sd]=dpxMeanUnequalLengthVectors(C{end}.yaw{v}); % ignores nan values
         C{end}.yawMean{v}=avg;
         C{end}.yawSEM{v}=sd./sqrt(num);
     end
