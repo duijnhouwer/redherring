@@ -132,6 +132,17 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseBack_tSec{t}=D.resp_mouseBack_tSec{t}-D.startSec(t);
         D.resp_mouseSide_tSec{t}=D.resp_mouseSide_tSec{t}-D.startSec(t);
     end
+    % Step 1.5, remove sample before trial start, these have weird values
+    % because the mouse cursor wasn't placed yet
+    for t=1:D.N
+        neg=D.resp_mouseBack_tSec{t}<0;
+        D.resp_mouseBack_tSec{t}(neg)=[];
+        D.resp_mouseSide_tSec{t}(neg)=[];
+        D.resp_mouseBack_dxPx{t}(neg)=[];
+        D.resp_mouseBack_dyPx{t}(neg)=[];
+        D.resp_mouseSide_dxPx{t}(neg)=[];
+        D.resp_mouseSide_dyPx{t}(neg)=[];
+    end
     % Step 2, remove offset from X value traces, because of monitor
     % settings in the Half Dome setup, the left-x is 0, and the control
     % computer starts at -1920. The Logitech mice are sampled on the
@@ -140,13 +151,39 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseBack_dxPx{t}=D.resp_mouseBack_dxPx{t}+1920;
         D.resp_mouseSide_dxPx{t}=D.resp_mouseSide_dxPx{t}+1920;
     end
-    % Step 3, smooth the data N*16.6667 ms running average (3 60-Hz samples is 50 ms)
-    SMOOTHFAC=3;
-    for t=1:D.N
-        D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC)';
-        D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC)';
-        D.resp_mouseSide_dxPx{t}=smooth(D.resp_mouseSide_dxPx{t},SMOOTHFAC)';
-        D.resp_mouseSide_dyPx{t}=smooth(D.resp_mouseSide_dyPx{t},SMOOTHFAC)';
+    % Step 3, smooth the data
+    if false
+        SMOOTHFAC=3; %smooth the data N*16.6667 ms running average  (3 60-Hz samples is 50 ms)
+        for t=1:D.N
+            
+           
+            
+            D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC)';
+            D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC)';
+            D.resp_mouseSide_dxPx{t}=smooth(D.resp_mouseSide_dxPx{t},SMOOTHFAC)';
+            D.resp_mouseSide_dyPx{t}=smooth(D.resp_mouseSide_dyPx{t},SMOOTHFAC)';
+        end
+    else
+        % Smooth using splines
+        fprintf('[%s] fitting splines...\n',mfilename);
+        for t=1:D.N
+            roughness=1/3; % 0 -> straight line, 1 -> R2==1
+            tt=D.resp_mouseBack_tSec{t};
+            if ~all(tt==D.resp_mouseBack_tSec{t})
+                error('what???!');
+            end
+            % back
+            pp=csaps(tt,D.resp_mouseBack_dxPx{t},roughness);
+            D.resp_mouseBack_dxPx{t}=ppval(pp,tt);
+            pp=csaps(tt,D.resp_mouseBack_dyPx{t},roughness);
+            D.resp_mouseBack_dyPx{t}=ppval(pp,tt);
+            % side
+            pp=csaps(tt,D.resp_mouseSide_dxPx{t},roughness);
+            D.resp_mouseSide_dxPx{t}=ppval(pp,tt);
+            pp=csaps(tt,D.resp_mouseSide_dyPx{t},roughness);
+            D.resp_mouseSide_dyPx{t}=ppval(pp,tt);
+        end
+        fprintf('[%s] fitting splines DONE\n',mfilename);
     end
     % Step 4, rename the mouse fields that code yaw (these should not
     % change from session to session but to be extra cautious we're gonna
@@ -178,7 +215,7 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         suspect=true;
         return;
     end
-    if corr(BdX(:),SdX(:))>maxCorr;
+    if corr(BdX(:),SdX(:))>maxCorr
         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
         str='yaw are BdX and SdX - OPTION 1';
@@ -224,11 +261,13 @@ function C=getMeanYawTracesPerMouse(C)
             for tr=1:numel(C{i}.yaw{v})
                 len(end+1)=numel(C{i}.yaw{v}{tr});
             end
+                fprintf('Using %s of trials\n',jdProp(len==median(len),'%'));
             ok=find(len==median(len));
             if isempty(ok)
                 error('no trial with correct length');
             end
             % [mn,n,sd]=dpxMeanUnequalLengthVectors(C{i}.preStimYaw{v},'align','end');
+            Y=[];
             for tr=1:numel(ok)
                 Y(tr,:)=dpxMakeRow( C{i}.yaw{v}{ok(tr)} );
             end

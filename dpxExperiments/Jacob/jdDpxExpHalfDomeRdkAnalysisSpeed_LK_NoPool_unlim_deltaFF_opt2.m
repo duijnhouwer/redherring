@@ -54,7 +54,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK_NoPool_unlim_deltaFF_opt2(files
             end
             D=dpxdSubset(D,t>=min(timeWinSec) & t<max(timeWinSec));
         end
-        maxFrDropsPerSec=5;
+        maxFrDropsPerSec=3;
         [D,percentBadTrials] = removeTrialWithTooManyFramedrops(D,maxFrDropsPerSec/D.window_measuredFrameRate(1)*100);
         disp(['File #' num2str(i,'%.3d') ': ' num2str(round(percentBadTrials)) '% of trials had more than ' num2str(maxFrDropsPerSec) ' video-frame drops per second']);
         if percentBadTrials>50
@@ -62,7 +62,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK_NoPool_unlim_deltaFF_opt2(files
             continue
         end
         %
-        [D,str,suspect,maxCorr]=clarifyAndCheck(D);
+        [D,suspect]=clarifyAndCheck(D);
         if ~suspect
             % Only include data files that are completely fine and have no suspicious
             % things happening, like poor correlations between the yaw measurements of
@@ -70,7 +70,7 @@ function out=jdDpxExpHalfDomeRdkAnalysisSpeed_LK_NoPool_unlim_deltaFF_opt2(files
             % same)
             E{end+1}=D; %#ok<AGROW>
         else
-            disp(['clarifyAndCheck said ' str ' but correlation (' num2str(maxCorr) ') is below threshold...']);
+            disp('clarifyAndCheck said file is suspect');
             fprintf(' ---> skipping file : %s\n', files{i} );
         end
         clear D;
@@ -245,23 +245,19 @@ function C=getSpeedCurves(D)
             % In dpxRespContiMouse, the moment of mouse readout is measured
             % using GetSecs and stored in tSec (shifted to trial start).
             % This seems to not work properly, there can be huge
-            idx=S.resp_mouseBack_tSec{tt}>=from & S.resp_mouseBack_tSec{tt}<till;
+            idx=S.resp_tSec{tt}>=from & S.resp_tSec{tt}<till;
             idx=idx(:)'; % make sure is row
-            % Take the mean yaw from both computer mice reading the ball
-            yaw{tt}=mean([S.resp_mouseSideYaw{tt}(idx);S.resp_mouseBackYaw{tt}(idx)],1);
-            time=S.resp_mouseBack_tSec{tt}(idx);
-            yaw{tt} = interp1(time,yaw{tt},interval+S.rdk_motStartSec(tt),'linear','extrap');
             
+            % I noticed thare is quite a bit of jitter on the samples, do a
+            % linear interpolation here to straighten that out. Note that at
+            % the beginning of the script any trial with too many framedrops
+            % should have been discarded and datafiles with to many discarded
+            % trials should be dropped entirely. Added this after discovering
+            % teh massive jitter on 2016-07-05. It would be good to figure out
+            % what causes the framedrops in the first place.
+            yaw{tt} = interp1(S.resp_tSec{tt}(idx),S.resp_yaw{tt}(idx),interval+S.rdk_motStartSec(tt),'linear','extrap');    
         end
-        
-        
-        % I noticed thare is quite a bit of jitter on the samples, do a
-        % linear interpolation here to straighten that out. Note that at
-        % the beginning of the script any trial with too many framedrops
-        % should have been discarded and datafiles with to many discarded
-        % trials should be dropped entirely. Added this after discovering
-        % teh massive jitter on 2016-07-05. It would be good to figure out
-        % what causes the framedrops in the first place.
+
     end
 end
 
@@ -273,8 +269,19 @@ function [D,percentTrials] = removeTrialWithTooManyFramedrops(D,thresholdPercent
     D = dpxdSubset(D,okTrials);
 end
 
-function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
+function [D,suspect]=clarifyAndCheck(D)
     % Make some changes to the DPXD that make the analysis easier to read;
+
+    % Step 0 remove the first sample (outlier probably because mouse
+    % cursor not moved to the center of the screen yet)
+    for t=1:D.N
+        D.resp_mouseBack_dxPx{t}(1)=[];
+        D.resp_mouseSide_dxPx{t}(1)=[];
+        D.resp_mouseBack_dyPx{t}(1)=[];
+        D.resp_mouseSide_dyPx{t}(1)=[];
+        D.resp_mouseBack_tSec{t}(1)=[];
+        D.resp_mouseSide_tSec{t}(1)=[];
+    end
     % Step 1, align time of traces to the start of trial
     for t=1:D.N
         D.resp_mouseBack_tSec{t}=D.resp_mouseBack_tSec{t}-D.startSec(t);
@@ -288,82 +295,31 @@ function [D,str,suspect,maxCorr]=clarifyAndCheck(D)
         D.resp_mouseBack_dxPx{t}=D.resp_mouseBack_dxPx{t}+1920;
         D.resp_mouseSide_dxPx{t}=D.resp_mouseSide_dxPx{t}+1920;
     end
-    % Step 3, rename the mouse fields that code yaw (these should not
-    % change from session to session but to be extra cautious we're gonna
-    % assume nothing and figure out on a per file basis. Yaw is shared by
-    % the back and the side Logitech, determine what combination
-    % backdx,backdy,sizedx,sidedy has the most similar trace, these must
-    % have been the yaw axes. Do this for all trials in a file, the mouse may
-    % have been sitting still during a trial, and this method would fail if
-    % only that trial was regarded.
-    BdX=[];
-    BdY=[];
-    SdX=[];
-    SdY=[];
+    % Step 3, rename the mouse fields that code yaw. Also get the pitch
+    % (forward speed) for each trial so we can filter on running speed. and
+    % get the correlation between the yaw as measured with the sidemouse
+    % and the mouse in the back. These correlation should be very high
+    % because they measrue the same thing. After calculating the correlaton
+    % apply a smoothing spline with specified roughness. store the mean
+    rough=1/3;
     for t=1:D.N
-        tSec=D.resp_mouseSide_tSec{t};
-        idx=tSec>1 & tSec<max(tSec)-1;
-        BdX=[BdX D.resp_mouseBack_dxPx{t}(idx)]; %#ok<AGROW>
-        BdY=[BdY D.resp_mouseBack_dyPx{t}(idx)]; %#ok<AGROW>
-        SdX=[SdX D.resp_mouseSide_dxPx{t}(idx)]; %#ok<AGROW>
-        SdY=[SdY D.resp_mouseSide_dyPx{t}(idx)]; %#ok<AGROW>
+        D.resp_spline_roughness{t}=rough;
+        D.resp_yaw_corr{t}=corr(D.resp_mouseBack_dyPx{t}(:),D.resp_mouseSide_dyPx{t}(:));
+        D.resp_tSec{t}=mean([D.resp_mouseBack_tSec{t}(:) D.resp_mouseSide_tSec{t}(:)],2)';   
+        backyaw=csaps(D.resp_mouseBack_tSec{t},D.resp_mouseBack_dyPx{t},rough,D.resp_tSec{t});
+        sideyaw=csaps(D.resp_mouseSide_tSec{t},D.resp_mouseSide_dyPx{t},rough,D.resp_tSec{t});
+        D.resp_yaw{t}=mean([backyaw(:) sideyaw(:)],2)';
+        D.resp_pitch{t}=csaps(D.resp_mouseBack_tSec{t},D.resp_mouseBack_dxPx{t},rough,D.resp_tSec{t});
     end
-    maxCorr=-Inf;
-    str='shouldhavebeenoverwritten';
-    if std(BdX)==0 || std(BdY)==0 || std(SdX)==0 || std(SdY)==0
-        warning('no variation in mouse signal, did the experimenter plug them in???');
-        suspect=true;
-        D.resp_mouseBackYaw=[];
-        D.resp_mouseSideYaw=[];
-        return;
-    end
-     if false && corr(BdX(:),SdX(:))>maxCorr % FALSE
-         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
-         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
-         str='yaw are BdX and SdX - OPTION 1';
-         maxCorr=corr(BdX(:),SdX(:));
-     end
-     if corr(BdY(:),SdY(:))>maxCorr
-       D.resp_mouseBackYaw=D.resp_mouseBack_dyPx;
-       D.resp_mouseSideYaw=D.resp_mouseSide_dyPx;
-       str='yaw are BdY and SdY - OPTION 22';
-       maxCorr=corr(BdY(:),SdY(:));
-     end
-     if false && corr(BdX(:),SdY(:))>maxCorr % FALSE
-         D.resp_mouseBackYaw=D.resp_mouseBack_dxPx;
-         D.resp_mouseSideYaw=D.resp_mouseSide_dyPx;
-        str='yaw are BdX and SdY - OPTION 333';
-         maxCorr=corr(BdY(:),SdY(:));
-     end
-     if false && corr(BdY(:),SdX(:))>maxCorr % FALSE
-         D.resp_mouseBackYaw=D.resp_mouseBack_dyPx;
-         D.resp_mouseSideYaw=D.resp_mouseSide_dxPx;
-         str='yaw are BdY and SdX - OPTION 4444';
-         maxCorr=corr(BdY(:),SdY(:));
-     end
-     % Step 4, smooth the data N*16.6667 ms running average (3 60-Hz samples is 50 ms) 
-     SMOOTHFAC=19;
-     if SMOOTHFAC>0
-         for t=1:D.N
-             %   D.resp_mouseBack_dxPx{t}=smooth(D.resp_mouseBack_dxPx{t},SMOOTHFAC,'sgolay')';
-             %   D.resp_mouseBack_dyPx{t}=smooth(D.resp_mouseBack_dyPx{t},SMOOTHFAC,'sgolay')';
-             %   D.resp_mouseSide_dxPx{t}=smooth(D.resp_mouseSide_dxPx{t},SMOOTHFAC,'sgolay')';
-             %   D.resp_mouseSide_dyPx{t}=smooth(D.resp_mouseSide_dyPx{t},SMOOTHFAC,'sgolay')';
-             
-             D.resp_mouseBackYaw{t}=smooth(D.resp_mouseBackYaw{t},SMOOTHFAC)';
-             D.resp_mouseSideYaw{t}=smooth(D.resp_mouseSideYaw{t},SMOOTHFAC)';
-         end
-     end
-    
-    % Step 5: Convert yaw pixels/frame to deg/s (added 20170710)
+    % Step 4: Convert yaw pixels/frame to deg/s (added 20170710)
     scalar = jdDpxExpHalfDomeAuToDps;
-    for i=1:numel(D.resp_mouseBackYaw)
-        D.resp_mouseBackYaw{i}=D.resp_mouseBackYaw{i}*scalar;
-        D.resp_mouseSideYaw{i}=D.resp_mouseSideYaw{i}*scalar;
+    for i=1:numel(D.resp_yaw)
+        D.resp_yaw{i}=D.resp_yaw{i}*scalar;
+        D.resp_pitch{i}=D.resp_pitch{i}*scalar;
     end
     
     % See if the file is up to snuff
-    suspect = ~contains(str,'OPTION 2') || maxCorr<0.8;
+    suspect = false;
          
 end
 
@@ -377,9 +333,9 @@ function C=getMeanYawTracesPerMouse(C)
             % unequal length averaging. I don't know why that is currently commented
             % out, i must have had problems with that when i wrote it in Dec-2014. I'll
             % look into it again if the data is promising enough Jacob, 2015-05-18
-            len=[];
-            for tr=1:numel(C{i}.yaw{v})
-                len(end+1)=numel(C{i}.yaw{v}{tr});
+            len=nan(1,numel(C{i}.yaw{v}));
+            for tr=1:numel(len)
+                len(tr)=numel(C{i}.yaw{v}{tr});
             end
             oklen=find(len==mode(len));
             if isempty(oklen)
