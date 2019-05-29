@@ -4,21 +4,20 @@ function time_courses_olr_and_reversal
     options.roll_range=[-Inf Inf];
     options.min_trials_per_condition=25;
     options.splineroughness=1/3;
+    options.min_spline_r2=eps;
     options.detrend_per_mouse=true;
     options.nrows=4;
     options.include_mice=1:9; % 0 and 1:9 mean all mice, 1 means mouse 1 etc, [1 2 4 5] means these mice
-    options.freezeflips=[1 2 3 4 5 7]; % freezeflips to keep
+    options.freezeflips=[1 2 3 4 5 6 7]; % freezeflips to keep
     options.pool_freezeflips=false;
     options.reversal_measure='signed absolute product'; % tstat, linear, multiplicative, divisive, signrank, ttest
     
-    load('barebonesreversephidata.mat','DPXD'); % created with datafiles_to_barebones_dpxd.m
+    load('barebonesreversephidata.mat','DPXD'); % created with revphi2019.datafiles_to_barebones_dpxd.m
     D=DPXD;
     clear DPXD;
     
     % remove the unlimited lifetime data
     D=dpxdSubset(D,D.mode~='u');
-    cpsFindFig(mfilename);
-    clf
     
     % remove the freezeflips that we dont' want to analyse
     D=dpxdSubset(D,ismember(D.ff,options.freezeflips));
@@ -27,8 +26,9 @@ function time_courses_olr_and_reversal
     end
     
     D=subset_trials_by_pitch_and_roll(D,options);
-    [D,options.include_mice]=remove_mice_conditions_with_too_few_n(D,options.min_trials_per_condition);
+    [D,options.include_mice]=remove_mice_conditions_with_too_few_n(D,options.min_trials_per_condition); % good to remove outliers now so no spline fitting required, save time
     D=convert_yaw_per_trial_to_yaw_per_condition(D,options);
+    [D,options.include_mice]=remove_mice_conditions_with_too_few_n(D,options.min_trials_per_condition); % remove more outliers (if any)
         
     % Detrend the yaw data by removing the mean over all conditions for
     % each mouse
@@ -47,6 +47,8 @@ function time_courses_olr_and_reversal
     
     
     % plot mean OLRs
+    cpsFindFig(mfilename);
+    clf
     D=dpxdSplit(D,'ff');
     n_freeze_flips=numel(D);
     for i=1:n_freeze_flips
@@ -114,28 +116,53 @@ function D=convert_yaw_per_trial_to_yaw_per_condition(D,options)
         mean_yaw_prestim=mean(D.yaw{i}(D.ms(:,i)>=-0.5 & D.ms(:,i)<=0,:),1);
         D.yaw{i}=D.yaw{i}-mean_yaw_prestim;
     end
-    toc(ttt);    %
+    toc(ttt);
+    %
     ttt=tic;
     fprintf('[%s] replacing yaw traces with splines...',mfilename);
     for i=1:D.N
         xx=D.ms(:,i);
         for t=1:size(D.yaw{i},2)
             thisyaw=D.yaw{i}(:,t);
-            if any(isnan(thisyaw)) %|| any(isnan(thispitch)) || any(isnan(thisroll))
-                warning off
-            end
-            D.yaw{i}(:,t)=csaps(xx,thisyaw,options.splineroughness,xx);
+           % if any(isnan(thisyaw)) %|| any(isnan(thispitch)) || any(isnan(thisroll))
+           %     warning off
+           % end
+           dbstop if warning
+            splineyaw=csaps(xx,thisyaw,options.splineroughness,xx);
             warning on
+            % calculate the R2 of this spline so we can filter out really
+            % wild traces that can't be captured with the roughness
+            % provided like they should (ball shouldn't be jumping around
+            % but change course more or less smoothly)
+            R2=1-sum((thisyaw-splineyaw).^2)/sum((thisyaw-mean(thisyaw)).^2);
+            if R2>options.min_spline_r2
+                D.yaw{i}(:,t)=splineyaw;
+            else
+                D.yaw{i}(:,t)=Inf; % mark for removal
+            end
         end
+        
     end
     toc(ttt);
     %
     ttt=tic;
-    fprintf('[%s] calculate mean yaw, pitch, roll. with sems ...',mfilename);
+    fprintf('[%s] removing traces with R2<%f at splineroughness %f...',mfilename,options.min_spline_r2,options.splineroughness);
+    n_removed=0;
+    n_total=0;
+    for i=1:D.N
+        n_removed=n_removed+sum(mean(D.yaw{i})==Inf);
+        n_total=n_total+size(D.yaw{i},2);
+        D.yaw{i}(:,mean(D.yaw{i})==Inf)=[];
+    end
+    fprintf(' removed %d/%d traces. ',n_removed,n_total);
+    toc(ttt);
+    %
+    ttt=tic;
+    fprintf('[%s] calculate mean yaw with sems ... ',mfilename);
     [D.yaw_mean,D.yaw_sem]=deal(nan(size(D.ms)));
     for i=1:D.N
-        D.yaw_mean(:,i)=mean(D.yaw{i},2);
-        D.yaw_sem(:,i)=std(D.yaw{i},[],2)./size(D.yaw{i},2);
+        D.yaw_mean(:,i)=nanmean(D.yaw{i},2);
+        D.yaw_sem(:,i)=nanstd(D.yaw{i},[],2)./size(D.yaw{i},2);
     end
     toc(ttt);
 end
@@ -156,10 +183,10 @@ function plot_olrs(h,D)
     [L,R]=dpxdSubset(D,D.dps<0); % left , right
     t=L.ms(:,1);
     err=std(L.yaw_mean,[],2)/sqrt(size(L.yaw_mean,2));
-    jdPlotBounded('axes',h','x',t,'y',mean(L.yaw_mean,2),'eu',err,'ed',err,'Color','r','LineStyle',line);
+    revphi2019.jdPlotBounded('axes',h','x',t,'y',mean(L.yaw_mean,2),'eu',err,'ed',err,'Color','r','LineStyle',line);
     hold on
     err=std(R.yaw_mean,[],2)/sqrt(size(R.yaw_mean,2));
-    jdPlotBounded('axes',h','x',t,'y',mean(R.yaw_mean,2),'eu',err,'ed',err,'Color','b','LineStyle',line);
+    revphi2019.jdPlotBounded('axes',h','x',t,'y',mean(R.yaw_mean,2),'eu',err,'ed',err,'Color','b','LineStyle',line);
     set(h,'Xlim',[min(t) max(t)]);
     cpsRefLine('-','k--');
 end
@@ -184,7 +211,7 @@ function line_h=plot_right_minus_left(h,D)
         t=L.ms(:,1);
         y=mean(right_minus_left,2);
         e=std(right_minus_left,[],2)./size(right_minus_left,2);
-        line_h(m)=jdPlotBounded('axes',h','x',t,'y',y,'eu',e,'ed',e,'Color','m','LineStyle',line);
+        line_h(m)=revphi2019.jdPlotBounded('axes',h','x',t,'y',y,'eu',e,'ed',e,'Color','m','LineStyle',line);
         hold on
         set(h,'Xlim',[min(t) max(t)]);
         cpsRefLine('-','k--');
@@ -222,7 +249,7 @@ function plot_diff_phi_contrast_inverted_revphi_contrast(D,options,row)
         t=D{i}.ms(:,1);
         y=nanmean(D{i}.reversal,2);
         err=nanstd(D{i}.reversal,[],2)/sqrt(size(D{i}.reversal,2)/4);
-        jdPlotBounded('axes',reverseaxes(i),'x',t,'y',y,'eu',err,'ed',err,'Color','k','LineStyle','-');
+        revphi2019.jdPlotBounded('axes',reverseaxes(i),'x',t,'y',y,'eu',err,'ed',err,'Color','k','LineStyle','-');
         if i==1
             xlabel('Time since motion onset (s)');
             ylabel(ylabel_str);
